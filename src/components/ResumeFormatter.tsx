@@ -112,7 +112,7 @@ export function ResumeFormatter() {
             </div>
 
             <div>
-              <label htmlFor="jobDescription" className="block text-sm font-semibold text-gray-700">
+              <label htmlFor="jobDescription" className="block text-sm font-semibold text-gray-700 text-right">
                 Job Description
               </label>
               <textarea

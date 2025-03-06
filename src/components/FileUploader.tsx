@@ -44,7 +44,7 @@ export function FileUploader({ onFileSelect, selectedFile, accept }: FileUploade
 
   return (
     <div
-      className={`border-2 border-dashed rounded-lg p-6 text-center ${
+      className={`border-2 border-dashed rounded-lg mt-1 h-[310px] flex items-center justify-center ${
         isDragging
           ? 'border-indigo-500 bg-indigo-50'
           : 'border-gray-300 hover:border-gray-400'
@@ -63,10 +63,10 @@ export function FileUploader({ onFileSelect, selectedFile, accept }: FileUploade
       />
       <label
         htmlFor="file-upload"
-        className="cursor-pointer inline-flex flex-col items-center"
+        className="cursor-pointer inline-flex flex-col items-center p-6 text-center"
       >
         <svg
-          className="w-12 h-12 text-gray-400 mb-3"
+          className="w-12 h-12 text-gray-400 mb-4"
           fill="none"
           stroke="currentColor"
           viewBox="0 0 24 24"
@@ -78,12 +78,12 @@ export function FileUploader({ onFileSelect, selectedFile, accept }: FileUploade
             d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
           />
         </svg>
-        <span className="text-gray-600">
+        <span className="text-gray-600 text-base mb-2">
           {selectedFile
             ? selectedFile.name
             : 'Drop your resume here, or click to select'}
         </span>
-        <span className="text-sm text-gray-500 mt-2">
+        <span className="text-sm text-gray-500">
           Supported formats: PDF, DOC, DOCX, TXT
         </span>
       </label>
