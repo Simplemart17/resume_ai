@@ -17,27 +17,53 @@ export async function POST(request: Request) {
       );
     }
 
-    const systemPrompt = `You are an expert ATS (Applicant Tracking System) and resume optimization specialist with deep knowledge of various industries and current hiring practices. Your task is to analyze and optimize resumes to maximize their match with job descriptions.`;
+    const systemPrompt = `You are an expert ATS (Applicant Tracking System) specialist and professional resume writer with deep knowledge of:
+- Modern ATS algorithms and keyword optimization
+- Industry-specific requirements and terminology
+- Professional resume formatting standards
+- Achievement quantification and impact metrics
+- Recruiter psychology and screening patterns
+
+Your task is to analyze and optimize resumes to maximize their match with specific job descriptions while maintaining authenticity and professionalism.`;
 
     const userPrompt = `
-    Please analyze and optimize the following resume to match the job description provided. Follow these steps:
+    Please analyze and optimize the following resume to perfectly match the job description provided. Follow this comprehensive process:
 
-    1. ANALYSIS:
-    - Identify key requirements and skills from the job description
-    - Analyze how well the current resume matches these requirements
-    - Note any missing key skills or experiences
+    1. DEEP JOB ANALYSIS:
+    - Extract core requirements, skills, and qualifications
+    - Identify primary and secondary keywords
+    - Note specific industry terminology and tools
+    - Understand the company's priorities from the language used
+    - Recognize both explicit and implicit requirements
 
-    2. OPTIMIZATION:
-    - Rewrite the resume to highlight relevant experiences and skills
-    - Add industry-specific keywords from the job description
-    - Quantify achievements where possible
-    - Ensure ATS-friendly formatting
-    - Maintain professional tone and clarity
+    2. RESUME EVALUATION:
+    - Compare existing skills and experiences with job requirements
+    - Identify alignment opportunities in the candidate's background
+    - Note areas where experience could be better presented
+    - Find potential skill gaps and transferable skills
 
-    3. PROVIDE:
-    - A score out of 100 for how well the optimized resume matches the job
-    - Brief explanation of major changes made
-    - List of key matching skills
+    3. STRATEGIC OPTIMIZATION:
+    - Reorganize content to prioritize most relevant experiences
+    - Mirror the job description's language and terminology
+    - Transform generic statements into job-specific achievements
+    - Quantify results and impacts wherever possible
+    - Incorporate ATS-friendly keywords naturally
+    - Ensure all critical job requirements are addressed
+    - Add relevant technical skills and certifications prominently
+
+    4. ATS OPTIMIZATION:
+    - Use standard section headings
+    - Incorporate primary keywords in context
+    - Ensure proper formatting for ATS parsing
+    - Balance keyword optimization with readability
+    - Include both abbreviated and full versions of technical terms
+
+    5. PROVIDE DETAILED ANALYSIS:
+    - Calculate match percentage based on key requirements
+    - List all matching skills found in both documents
+    - Identify important missing skills or qualifications
+    - Detail all optimization changes made
+    - Suggest areas for candidate's future development
 
     Job Description:
     ${jobDescription}
@@ -45,14 +71,20 @@ export async function POST(request: Request) {
     Original Resume:
     ${resume}
 
-    Please format the response as a JSON object with the following structure:
+    Format the response as a JSON object with:
     {
-      "optimizedResume": "the formatted resume content",
-      "matchScore": number,
-      "changes": ["list of major changes"],
-      "matchingSkills": ["list of matching skills"],
-      "missingSkills": ["list of important missing skills"]
+      "optimizedResume": "the professionally formatted and optimized resume content",
+      "matchScore": number (calculated based on key requirement matches),
+      "changes": ["detailed list of strategic changes made"],
+      "matchingSkills": ["all matching skills and keywords found"],
+      "missingSkills": ["critical skills from job description not found in resume"]
     }
+
+    Ensure the optimizedResume maintains a professional format with clear sections for:
+    - Professional Summary (tailored to the role)
+    - Work Experience (with quantified achievements)
+    - Skills (organized by relevance)
+    - Education & Certifications
     `;
 
     const completion = await openai.chat.completions.create({
