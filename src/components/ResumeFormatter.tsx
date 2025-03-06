@@ -3,11 +3,19 @@
 import { useState } from 'react';
 import { FileUploader } from './FileUploader';
 
+interface FormattedResult {
+  optimizedResume: string;
+  matchScore: number;
+  changes: string[];
+  matchingSkills: string[];
+  missingSkills: string[];
+}
+
 export function ResumeFormatter() {
   const [resumeFile, setResumeFile] = useState<File | null>(null);
   const [jobDescription, setJobDescription] = useState('');
   const [loading, setLoading] = useState(false);
-  const [formattedResume, setFormattedResume] = useState('');
+  const [result, setResult] = useState<FormattedResult | null>(null);
   const [error, setError] = useState('');
 
   const handleFileChange = (file: File | null) => {
@@ -39,7 +47,7 @@ export function ResumeFormatter() {
       }
       
       const { text } = await uploadResponse.json();
-      
+
       // Now format the resume
       const formatResponse = await fetch('/api/format-resume', {
         method: 'POST',
@@ -54,7 +62,7 @@ export function ResumeFormatter() {
       }
 
       const data = await formatResponse.json();
-      setFormattedResume(data.formattedResume);
+      setResult(data);
     } catch (error) {
       console.error('Error:', error);
       setError(error instanceof Error ? error.message : 'An error occurred');
@@ -107,11 +115,63 @@ export function ResumeFormatter() {
         </div>
       </form>
 
-      {formattedResume && (
-        <div className="mt-8">
-          <h2 className="text-lg font-medium text-gray-900 mb-4">Formatted Resume</h2>
-          <div className="bg-gray-50 p-4 rounded-md">
-            <pre className="whitespace-pre-wrap">{formattedResume}</pre>
+      {result && (
+        <div className="mt-8 space-y-6">
+          <div>
+            <h2 className="text-lg font-medium text-gray-900 mb-2">Match Score</h2>
+            <div className="flex items-center gap-2">
+              <div className="w-full bg-gray-200 rounded-full h-2.5">
+                <div 
+                  className="bg-indigo-600 h-2.5 rounded-full" 
+                  style={{ width: `${result.matchScore}%` }}
+                ></div>
+              </div>
+              <span className="text-sm font-medium text-gray-700">{result.matchScore}%</span>
+            </div>
+          </div>
+
+          <div>
+            <h2 className="text-lg font-medium text-gray-900 mb-2">Matching Skills</h2>
+            <div className="flex flex-wrap gap-2">
+              {result.matchingSkills.map((skill, index) => (
+                <span 
+                  key={index}
+                  className="px-2 py-1 bg-green-100 text-green-800 text-sm rounded-full"
+                >
+                  {skill}
+                </span>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <h2 className="text-lg font-medium text-gray-900 mb-2">Missing Skills</h2>
+            <div className="flex flex-wrap gap-2">
+              {result.missingSkills.map((skill, index) => (
+                <span 
+                  key={index}
+                  className="px-2 py-1 bg-red-100 text-red-800 text-sm rounded-full"
+                >
+                  {skill}
+                </span>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <h2 className="text-lg font-medium text-gray-900 mb-2">Major Changes Made</h2>
+            <ul className="list-disc list-inside space-y-1">
+              {result.changes.map((change, index) => (
+                <li key={index} className="text-sm text-gray-600">{change}</li>
+              ))}
+            </ul>
+          </div>
+
+          <div>
+            <h2 className="text-lg font-medium text-gray-900 mb-2">Optimized Resume</h2>
+            <div className="bg-gray-50 p-4 rounded-md">
+              <pre className="whitespace-pre-wrap text-sm">{result.optimizedResume}</pre>
+            </div>
           </div>
         </div>
       )}
