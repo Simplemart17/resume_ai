@@ -1,32 +1,63 @@
 'use client';
 
 import { useState } from 'react';
+import { FileUploader } from './FileUploader';
 
 export function ResumeFormatter() {
-  const [resume, setResume] = useState('');
+  const [resumeFile, setResumeFile] = useState<File | null>(null);
   const [jobDescription, setJobDescription] = useState('');
   const [loading, setLoading] = useState(false);
   const [formattedResume, setFormattedResume] = useState('');
+  const [error, setError] = useState('');
+
+  const handleFileChange = (file: File | null) => {
+    setResumeFile(file);
+    setError('');
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    setError('');
     
     try {
-      // TODO: Implement AI formatting logic here
-      const response = await fetch('/api/format-resume', {
+      if (!resumeFile) {
+        throw new Error('Please upload a resume file');
+      }
+
+      // First, upload the file and get the text content
+      const formData = new FormData();
+      formData.append('file', resumeFile);
+      
+      const uploadResponse = await fetch('/api/upload-resume', {
+        method: 'POST',
+        body: formData,
+      });
+      
+      if (!uploadResponse.ok) {
+        throw new Error('Failed to process resume file');
+      }
+      
+      const { text } = await uploadResponse.json();
+      
+      // Now format the resume
+      const formatResponse = await fetch('/api/format-resume', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ resume, jobDescription }),
+        body: JSON.stringify({ resume: text, jobDescription }),
       });
       
-      const data = await response.json();
+      if (!formatResponse.ok) {
+        throw new Error('Failed to format resume');
+      }
+
+      const data = await formatResponse.json();
       setFormattedResume(data.formattedResume);
     } catch (error) {
-      console.error('Error formatting resume:', error);
-      alert('Error formatting resume. Please try again.');
+      console.error('Error:', error);
+      setError(error instanceof Error ? error.message : 'An error occurred');
     } finally {
       setLoading(false);
     }
@@ -36,19 +67,17 @@ export function ResumeFormatter() {
     <div className="bg-white shadow rounded-lg p-6">
       <form onSubmit={handleSubmit} className="space-y-6">
         <div>
-          <label htmlFor="resume" className="block text-sm font-medium text-gray-700">
+          <label className="block text-sm font-medium text-gray-700 mb-2">
             Your Resume
           </label>
-          <textarea
-            id="resume"
-            name="resume"
-            rows={10}
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-            placeholder="Paste your current resume here..."
-            value={resume}
-            onChange={(e) => setResume(e.target.value)}
-            required
+          <FileUploader
+            onFileSelect={handleFileChange}
+            selectedFile={resumeFile}
+            accept=".pdf,.doc,.docx,.txt"
           />
+          {error && (
+            <p className="mt-2 text-sm text-red-600">{error}</p>
+          )}
         </div>
 
         <div>
@@ -70,10 +99,10 @@ export function ResumeFormatter() {
         <div>
           <button
             type="submit"
-            disabled={loading}
+            disabled={loading || !resumeFile}
             className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
           >
-            {loading ? 'Formatting...' : 'Format Resume'}
+            {loading ? 'Processing...' : 'Format Resume'}
           </button>
         </div>
       </form>
