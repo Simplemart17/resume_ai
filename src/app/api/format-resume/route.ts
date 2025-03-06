@@ -60,7 +60,7 @@ export async function POST(request: Request) {
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt }
       ],
-      model: "gpt-4-turbo-preview",
+      model: "gpt-3.5-turbo",
       response_format: { type: "json_object" },
       temperature: 0.7,
     });

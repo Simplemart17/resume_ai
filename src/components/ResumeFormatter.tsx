@@ -58,7 +58,8 @@ export function ResumeFormatter() {
       });
       
       if (!formatResponse.ok) {
-        throw new Error('Failed to format resume');
+        const errorData = await formatResponse.json();
+        throw new Error(errorData.error || 'Failed to format resume');
       }
 
       const data = await formatResponse.json();
@@ -96,7 +97,7 @@ export function ResumeFormatter() {
             id="jobDescription"
             name="jobDescription"
             rows={6}
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+            className="mt-1 block w-full rounded-md border-gray-300 text-gray-900 p-3 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
             placeholder="Paste the job description here..."
             value={jobDescription}
             onChange={(e) => setJobDescription(e.target.value)}
@@ -170,7 +171,7 @@ export function ResumeFormatter() {
           <div>
             <h2 className="text-lg font-medium text-gray-900 mb-2">Optimized Resume</h2>
             <div className="bg-gray-50 p-4 rounded-md">
-              <pre className="whitespace-pre-wrap text-sm">{result.optimizedResume}</pre>
+              <pre className="whitespace-pre-wrap text-sm text-gray-900">{result.optimizedResume}</pre>
             </div>
           </div>
         </div>
