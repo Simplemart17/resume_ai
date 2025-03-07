@@ -3,8 +3,8 @@
 import { useState, useRef } from 'react';
 import { FileUploader } from './FileUploader';
 import { motion } from 'framer-motion';
-import jsPDF from 'jspdf';
-import html2canvas from 'html2canvas';
+import { jsPDF } from 'jspdf';
+import html2canvas from 'html2canvas-pro';
 
 interface FormattedResult {
   optimizedResume: string;
@@ -38,6 +38,7 @@ export function ResumeFormatter() {
         scale: 2,
         logging: false,
         useCORS: true,
+        allowTaint: true,
       });
 
       const pdf = new jsPDF({
@@ -165,7 +166,19 @@ export function ResumeFormatter() {
                 id="jobDescription"
                 name="jobDescription"
                 rows={12}
-                className="mt-1 block w-full rounded-lg border-gray-900 text-gray-700 p-3 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 resize-none"
+                className="mt-1 block w-full rounded-lg border-gray-900 text-gray-700 p-3 shadow-sm resize-none"
+                style={{
+                  outline: 'none',
+                  borderColor: '#d1d5db',
+                }}
+                onFocus={(e) => {
+                  e.target.style.borderColor = '#6366f1';
+                  e.target.style.boxShadow = '0 0 0 3px rgba(99, 102, 241, 0.2)';
+                }}
+                onBlur={(e) => {
+                  e.target.style.borderColor = '#d1d5db';
+                  e.target.style.boxShadow = 'none';
+                }}
                 placeholder="Paste the job description here..."
                 value={jobDescription}
                 onChange={(e) => setJobDescription(e.target.value)}
