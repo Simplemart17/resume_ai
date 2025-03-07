@@ -158,14 +158,14 @@ export function ResumeFormatter() {
             </div>
 
             <div>
-              <label htmlFor="jobDescription" className="block text-sm font-semibold text-gray-700 text-right">
+              <label htmlFor="jobDescription" className="mb-2 block text-sm font-semibold text-gray-700 text-right">
                 Job Description
               </label>
               <textarea
                 id="jobDescription"
                 name="jobDescription"
                 rows={12}
-                className="mt-1 block w-full rounded-lg border-gray-300 text-gray-700 p-3 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 resize-none"
+                className="mt-1 block w-full rounded-lg border-gray-900 text-gray-700 p-3 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 resize-none"
                 placeholder="Paste the job description here..."
                 value={jobDescription}
                 onChange={(e) => setJobDescription(e.target.value)}

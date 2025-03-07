@@ -44,7 +44,7 @@ export function FileUploader({ onFileSelect, selectedFile, accept }: FileUploade
 
   return (
     <div
-      className={`border-2 border-dashed rounded-lg mt-1 h-[310px] flex items-center justify-center ${
+      className={`border-2 border-dashed rounded-lg mt-1 h-[314px] flex items-center justify-center ${
         !isDragging ? 'border-gray-300 hover:border-gray-400' : ''
       }`}
       style={isDragging ? { borderColor: '#6366f1', backgroundColor: '#eef2ff' } : {}}
