@@ -117,9 +117,14 @@ export function ResumeFormatter() {
 
   return (
     <div className="max-w-4xl mx-auto">
-      <div className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white py-8 px-6 rounded-t-xl">
+      <div 
+        className="py-8 px-6 rounded-t-xl text-white"
+        style={{
+          background: 'linear-gradient(to right, rgb(79, 70, 229), rgb(147, 51, 234))'
+        }}
+      >
         <h1 className="text-3xl font-bold text-center mb-2">AI Resume Optimizer</h1>
-        <p className="text-center text-indigo-100">Upload your resume and job description to get AI-powered optimization</p>
+        <p className="text-center opacity-90">Upload your resume and job description to get AI-powered optimization</p>
       </div>
 
       <div className="bg-white shadow-xl rounded-b-xl p-6">
@@ -172,7 +177,10 @@ export function ResumeFormatter() {
           <motion.button
             type="submit"
             disabled={loading || !resumeFile}
-            className="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 transition-all duration-200"
+            className="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white disabled:opacity-50 transition-all duration-200"
+            style={{
+              background: 'linear-gradient(to right, rgb(79, 70, 229), rgb(147, 51, 234))'
+            }}
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
           >
@@ -196,24 +204,28 @@ export function ResumeFormatter() {
             transition={{ duration: 0.5, delay: 0.2 }}
           >
             <div className="flex justify-between items-center mb-8">
-              <div className="inline-flex rounded-lg border border-gray-200 p-1">
+              <div className="flex space-x-2 mb-6">
                 <button
+                  type="button"
                   onClick={() => setActiveTab('resume')}
-                  className={`px-4 py-2 rounded-md text-sm font-bold transition-all duration-200 ${
-                    activeTab === 'resume' 
-                      ? 'bg-indigo-600 text-white' 
-                      : 'text-gray-500 hover:text-gray-700'
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    activeTab === 'resume'
+                    ? 'text-white'
+                    : 'text-gray-700 hover:bg-gray-200 bg-gray-100'
                   }`}
+                  style={activeTab === 'resume' ? { backgroundColor: '#4f46e5' } : {}}
                 >
-                  Optimized Resume
+                  Resume
                 </button>
                 <button
+                  type="button"
                   onClick={() => setActiveTab('analysis')}
-                  className={`px-4 py-2 rounded-md text-sm font-medium transition-all duration-200 ${
-                    activeTab === 'analysis' 
-                      ? 'bg-indigo-600 text-white' 
-                      : 'text-gray-500 hover:text-gray-700'
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    activeTab === 'analysis'
+                    ? 'text-white'
+                    : 'text-gray-700 hover:bg-gray-200 bg-gray-100'
                   }`}
+                  style={activeTab === 'analysis' ? { backgroundColor: '#4f46e5' } : {}}
                 >
                   Analysis
                 </button>
@@ -223,7 +235,7 @@ export function ResumeFormatter() {
                 <motion.button
                   onClick={handleDownloadPDF}
                   disabled={downloading}
-                  className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50 transition-all duration-200"
+                  className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50 transition-all duration-200 cursor-pointer"
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
                 >
@@ -253,10 +265,19 @@ export function ResumeFormatter() {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ duration: 0.3 }}
-                className="bg-white p-8 rounded-xl shadow-inner"
+                className="bg-white p-8 rounded-xl border border-gray-200"
+                style={{
+                  boxShadow: 'inset 0 2px 4px 0 rgba(0, 0, 0, 0.06)'
+                }}
               >
-                <div className="max-w-[816px] mx-auto font-serif">
-                  <div className="whitespace-pre-wrap text-base leading-relaxed text-gray-800" style={{ fontFamily: 'Times New Roman' }}>
+                <div className="max-w-[816px] mx-auto">
+                  <div 
+                    className="whitespace-pre-wrap text-base leading-relaxed"
+                    style={{ 
+                      fontFamily: 'Times New Roman, serif',
+                      color: '#1f2937'
+                    }}
+                  >
                     {result.optimizedResume}
                   </div>
                 </div>
@@ -273,12 +294,15 @@ export function ResumeFormatter() {
                   <div className="relative pt-1">
                     <div className="flex items-center justify-between">
                       <div>
-                        <span className="text-3xl font-bold text-indigo-600">{result.matchScore}%</span>
+                        <span className="text-3xl font-bold" style={{ color: '#4f46e5' }}>{result.matchScore}%</span>
                       </div>
                     </div>
                     <div className="overflow-hidden h-2 mt-4 text-xs flex rounded bg-gray-200">
                       <motion.div 
-                        className="bg-gradient-to-r from-indigo-500 to-purple-500 rounded"
+                        className="rounded"
+                        style={{
+                          background: 'linear-gradient(to right, rgb(99, 102, 241), rgb(168, 85, 247))'
+                        }}
                         initial={{ width: 0 }}
                         animate={{ width: `${result.matchScore}%` }}
                         transition={{ duration: 1, ease: "easeOut" }}
@@ -288,7 +312,12 @@ export function ResumeFormatter() {
                 </div>
 
                 <div>
-                  <h2 className="text-lg font-medium text-gray-900 mb-4">Matching Skills</h2>
+                  <div className="flex items-center mb-2">
+                    <svg className="h-6 w-6 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" style={{ color: '#6366f1' }}>
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                    <h2 className="text-lg font-medium text-gray-900">Matching Skills</h2>
+                  </div>
                   <div className="flex flex-wrap gap-2">
                     {result.matchingSkills.map((skill, index) => (
                       <motion.span
@@ -305,7 +334,12 @@ export function ResumeFormatter() {
                 </div>
 
                 <div>
-                  <h2 className="text-lg font-medium text-gray-900 mb-4">Missing Skills</h2>
+                  <div className="flex items-center mb-2">
+                    <svg className="h-6 w-6 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" style={{ color: '#6366f1' }}>
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                    <h2 className="text-lg font-medium text-gray-900">Missing Skills</h2>
+                  </div>
                   <div className="flex flex-wrap gap-2">
                     {result.missingSkills.map((skill, index) => (
                       <motion.span
@@ -322,7 +356,12 @@ export function ResumeFormatter() {
                 </div>
 
                 <div>
-                  <h2 className="text-lg font-medium text-gray-900 mb-4">Improvements Made</h2>
+                  <div className="flex items-center mb-2">
+                    <svg className="h-6 w-6 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" style={{ color: '#6366f1' }}>
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <h2 className="text-lg font-medium text-gray-900">Changes Made</h2>
+                  </div>
                   <div className="bg-gray-50 rounded-xl p-6 shadow-inner">
                     <ul className="space-y-3">
                       {result.changes.map((change, index) => (
@@ -333,7 +372,7 @@ export function ResumeFormatter() {
                           transition={{ duration: 0.3, delay: index * 0.1 }}
                           className="flex items-start"
                         >
-                          <svg className="h-6 w-6 text-indigo-500 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <svg className="h-6 w-6 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" style={{ color: '#6366f1' }}>
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                           </svg>
                           <span className="text-gray-600">{change}</span>

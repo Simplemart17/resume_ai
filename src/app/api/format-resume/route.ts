@@ -92,6 +92,7 @@ Your task is to analyze and optimize resumes to maximize their match with specif
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt }
       ],
+      // model: "gpt-4o",
       model: "gpt-3.5-turbo",
       response_format: { type: "json_object" },
       temperature: 0.7,
