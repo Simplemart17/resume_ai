@@ -34,26 +34,54 @@ export function ResumeFormatter() {
     setDownloading(true);
 
     try {
-      const canvas = await html2canvas(resumeRef.current, {
+      // Create a temporary container with padding for margins
+      const tempContainer = document.createElement('div');
+      tempContainer.style.padding = '40px'; // Add 40px padding on all sides
+      tempContainer.style.backgroundColor = '#ffffff';
+      tempContainer.style.width = '816px'; // Standard A4 width in pixels at 96 DPI
+      
+      // Clone the resume content
+      const contentClone = resumeRef.current.cloneNode(true) as HTMLElement;
+      contentClone.style.margin = '0';
+      contentClone.style.width = '100%';
+      tempContainer.appendChild(contentClone);
+      
+      // Temporarily append to document
+      document.body.appendChild(tempContainer);
+
+      const canvas = await html2canvas(tempContainer, {
         scale: 2,
         logging: false,
         useCORS: true,
         allowTaint: true,
+        backgroundColor: '#ffffff',
       });
 
+      // Remove temporary container
+      document.body.removeChild(tempContainer);
+
+      // Calculate dimensions for centered content
       const pdf = new jsPDF({
         format: 'a4',
-        unit: 'px',
+        unit: 'pt',
       });
 
-      const imgWidth = 595;
+      // A4 dimensions in points (pt)
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+
+      // Calculate scaled dimensions to maintain aspect ratio
+      const imgWidth = pageWidth;
       const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      
+      // Center vertically if image is shorter than page
+      const yPosition = Math.max(0, (pageHeight - imgHeight) / 2);
       
       pdf.addImage(
         canvas.toDataURL('image/png'),
         'PNG',
         0,
-        0,
+        yPosition,
         imgWidth,
         imgHeight
       );
@@ -278,21 +306,24 @@ export function ResumeFormatter() {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ duration: 0.3 }}
-                className="bg-white p-8 rounded-xl border border-gray-200"
+                className="rounded-xl border border-gray-200"
                 style={{
+                  backgroundColor: '#ffffff',
+                  padding: '40px',
+                  maxWidth: '816px',
+                  margin: '0 auto',
                   boxShadow: 'inset 0 2px 4px 0 rgba(0, 0, 0, 0.06)'
                 }}
               >
-                <div className="max-w-[816px] mx-auto">
-                  <div 
-                    className="whitespace-pre-wrap text-base leading-relaxed"
-                    style={{ 
-                      fontFamily: 'Times New Roman, serif',
-                      color: '#1f2937'
-                    }}
-                  >
-                    {result.optimizedResume}
-                  </div>
+                <div 
+                  className="whitespace-pre-wrap text-base leading-relaxed"
+                  style={{ 
+                    fontFamily: 'Times New Roman, serif',
+                    color: '#1f2937',
+                    margin: '0 auto'
+                  }}
+                >
+                  {result.optimizedResume}
                 </div>
               </motion.div>
             ) : (
