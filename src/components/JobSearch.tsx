@@ -22,8 +22,10 @@ export function JobSearch() {
     e.preventDefault();
     setIsLoading(true);
     setError(null);
+    setJobPostings([]);
     
     try {
+      console.log(`Searching for ${keywords} jobs on ${jobSite}...`);
       const response = await fetch('/api/search-jobs', {
         method: 'POST',
         headers: {
@@ -37,14 +39,28 @@ export function JobSearch() {
       });
       
       if (!response.ok) {
-        throw new Error('Failed to fetch job postings');
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to fetch job postings');
       }
       
       const data = await response.json();
-      setJobPostings(data.jobs);
+      
+      if (data.source === 'mock-data' || data.source === 'mock-data (scraping failed)') {
+        setError('Unable to scrape real job postings. Showing sample results instead.');
+      }
+      
+      if (data.jobs.length === 0) {
+        setError('No job postings found matching your criteria. Try different keywords or location.');
+      } else {
+        setJobPostings(data.jobs);
+      }
     } catch (error) {
       console.error('Error fetching job postings:', error);
-      setError('Failed to fetch job postings. Please try again.');
+      if (error instanceof Error) {
+        setError(error.message);
+      } else {
+        setError('Failed to fetch job postings. Please try again.');
+      }
     } finally {
       setIsLoading(false);
     }
