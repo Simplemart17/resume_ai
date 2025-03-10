@@ -3,8 +3,6 @@
 import { useState, useRef } from 'react';
 import { FileUploader } from './FileUploader';
 import { motion } from 'framer-motion';
-import { jsPDF } from 'jspdf';
-import html2canvas from 'html2canvas-pro';
 
 interface FormattedResult {
   optimizedResume: string;
@@ -18,7 +16,6 @@ export function ResumeFormatter() {
   const [resumeFile, setResumeFile] = useState<File | null>(null);
   const [jobDescription, setJobDescription] = useState('');
   const [loading, setLoading] = useState(false);
-  const [downloading, setDownloading] = useState(false);
   const [result, setResult] = useState<FormattedResult | null>(null);
   const [error, setError] = useState('');
   const [activeTab, setActiveTab] = useState<'resume' | 'analysis'>('resume');
@@ -27,72 +24,6 @@ export function ResumeFormatter() {
   const handleFileChange = (file: File | null) => {
     setResumeFile(file);
     setError('');
-  };
-
-  const handleDownloadPDF = async () => {
-    if (!resumeRef.current || !result) return;
-    setDownloading(true);
-
-    try {
-      // Create a temporary container with padding for margins
-      const tempContainer = document.createElement('div');
-      tempContainer.style.padding = '40px'; // Add 40px padding on all sides
-      tempContainer.style.backgroundColor = '#ffffff';
-      tempContainer.style.width = '816px'; // Standard A4 width in pixels at 96 DPI
-      
-      // Clone the resume content
-      const contentClone = resumeRef.current.cloneNode(true) as HTMLElement;
-      contentClone.style.margin = '0';
-      contentClone.style.width = '100%';
-      tempContainer.appendChild(contentClone);
-      
-      // Temporarily append to document
-      document.body.appendChild(tempContainer);
-
-      const canvas = await html2canvas(tempContainer, {
-        scale: 2,
-        logging: false,
-        useCORS: true,
-        allowTaint: true,
-        backgroundColor: '#ffffff',
-      });
-
-      // Remove temporary container
-      document.body.removeChild(tempContainer);
-
-      // Calculate dimensions for centered content
-      const pdf = new jsPDF({
-        format: 'a4',
-        unit: 'pt',
-      });
-
-      // A4 dimensions in points (pt)
-      const pageWidth = pdf.internal.pageSize.getWidth();
-      const pageHeight = pdf.internal.pageSize.getHeight();
-
-      // Calculate scaled dimensions to maintain aspect ratio
-      const imgWidth = pageWidth;
-      const imgHeight = (canvas.height * imgWidth) / canvas.width;
-      
-      // Center vertically if image is shorter than page
-      const yPosition = Math.max(0, (pageHeight - imgHeight) / 2);
-      
-      pdf.addImage(
-        canvas.toDataURL('image/png'),
-        'PNG',
-        0,
-        yPosition,
-        imgWidth,
-        imgHeight
-      );
-
-      pdf.save('optimized-resume.pdf');
-    } catch (error) {
-      console.error('Error generating PDF:', error);
-      setError('Failed to generate PDF');
-    } finally {
-      setDownloading(false);
-    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -142,6 +73,17 @@ export function ResumeFormatter() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleGenerateCoverLetter = () => {
+    if (!result || !jobDescription) return;
+    
+    const searchParams = new URLSearchParams({
+      jobTitle: jobDescription.match(/(?:position|job title|role):?\s*([^.;\n]+)/i)?.[1] || 'the position',
+      company: jobDescription.match(/(?:at|with|for)\s+([^.;\n]+)/i)?.[1] || 'the company',
+      jobDesc: jobDescription
+    });
+    window.location.href = `/cover-letter?${searchParams.toString()}`;
   };
 
   return (
@@ -274,28 +216,15 @@ export function ResumeFormatter() {
 
               {activeTab === 'resume' && (
                 <motion.button
-                  onClick={handleDownloadPDF}
-                  disabled={downloading}
-                  className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50 transition-all duration-200 cursor-pointer"
+                  onClick={handleGenerateCoverLetter}
+                  className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-all duration-200 cursor-pointer"
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
                 >
-                  {downloading ? (
-                    <>
-                      <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                      </svg>
-                      Generating PDF...
-                    </>
-                  ) : (
-                    <>
-                      <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                      </svg>
-                      Download PDF
-                    </>
-                  )}
+                  <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                  </svg>
+                  Generate Cover Letter
                 </motion.button>
               )}
             </div>
