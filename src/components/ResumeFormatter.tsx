@@ -19,6 +19,9 @@ export function ResumeFormatter() {
   const [result, setResult] = useState<FormattedResult | null>(null);
   const [error, setError] = useState('');
   const [activeTab, setActiveTab] = useState<'resume' | 'analysis'>('resume');
+  const [coverLetter, setCoverLetter] = useState<string>('');
+  const [generatingCoverLetter, setGeneratingCoverLetter] = useState(false);
+  const [coverLetterError, setCoverLetterError] = useState<string | null>(null);
   const resumeRef = useRef<HTMLDivElement>(null);
 
   const handleFileChange = (file: File | null) => {
@@ -30,6 +33,8 @@ export function ResumeFormatter() {
     e.preventDefault();
     setLoading(true);
     setError('');
+    setCoverLetter('');
+    setCoverLetterError(null);
     
     try {
       if (!resumeFile) {
@@ -75,15 +80,38 @@ export function ResumeFormatter() {
     }
   };
 
-  const handleGenerateCoverLetter = () => {
+  const handleGenerateCoverLetter = async () => {
     if (!result || !jobDescription) return;
     
-    const searchParams = new URLSearchParams({
-      jobTitle: jobDescription.match(/(?:position|job title|role):?\s*([^.;\n]+)/i)?.[1] || 'the position',
-      company: jobDescription.match(/(?:at|with|for)\s+([^.;\n]+)/i)?.[1] || 'the company',
-      jobDesc: jobDescription
-    });
-    window.location.href = `/cover-letter?${searchParams.toString()}`;
+    setGeneratingCoverLetter(true);
+    setCoverLetterError(null);
+
+    try {
+      const response = await fetch('/api/generate-cover-letter', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          jobTitle: jobDescription.match(/(?:position|job title|role):?\s*([^.;\n]+)/i)?.[1] || 'the position',
+          company: jobDescription.match(/(?:at|with|for)\s+([^.;\n]+)/i)?.[1] || 'the company',
+          jobDescription: jobDescription
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to generate cover letter');
+      }
+
+      setCoverLetter(data.coverLetter);
+    } catch (error) {
+      console.error('Error generating cover letter:', error);
+      setCoverLetterError(error instanceof Error ? error.message : 'Failed to generate cover letter');
+    } finally {
+      setGeneratingCoverLetter(false);
+    }
   };
 
   return (
@@ -214,47 +242,95 @@ export function ResumeFormatter() {
                 </button>
               </div>
 
-              {activeTab === 'resume' && (
+              {activeTab === 'resume' && !coverLetter && (
                 <motion.button
                   onClick={handleGenerateCoverLetter}
-                  className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-all duration-200 cursor-pointer"
+                  disabled={generatingCoverLetter}
+                  className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-all duration-200 cursor-pointer disabled:opacity-50"
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
                 >
-                  <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                  </svg>
-                  Generate Cover Letter
+                  {generatingCoverLetter ? (
+                    <>
+                      <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      Generating...
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                      </svg>
+                      Generate Cover Letter
+                    </>
+                  )}
                 </motion.button>
               )}
             </div>
 
             {activeTab === 'resume' ? (
-              <motion.div
-                ref={resumeRef}
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ duration: 0.3 }}
-                className="rounded-xl border border-gray-200"
-                style={{
-                  backgroundColor: '#ffffff',
-                  padding: '40px',
-                  maxWidth: '816px',
-                  margin: '0 auto',
-                  boxShadow: 'inset 0 2px 4px 0 rgba(0, 0, 0, 0.06)'
-                }}
-              >
-                <div 
-                  className="whitespace-pre-wrap text-base leading-relaxed"
-                  style={{ 
-                    fontFamily: 'Times New Roman, serif',
-                    color: '#1f2937',
-                    margin: '0 auto'
+              <div className="space-y-8">
+                <motion.div
+                  ref={resumeRef}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ duration: 0.3 }}
+                  className="rounded-xl border border-gray-200"
+                  style={{
+                    backgroundColor: '#ffffff',
+                    padding: '40px',
+                    maxWidth: '816px',
+                    margin: '0 auto',
+                    boxShadow: 'inset 0 2px 4px 0 rgba(0, 0, 0, 0.06)'
                   }}
                 >
-                  {result.optimizedResume}
-                </div>
-              </motion.div>
+                  <div 
+                    className="whitespace-pre-wrap text-base leading-relaxed"
+                    style={{ 
+                      fontFamily: 'Times New Roman, serif',
+                      color: '#1f2937',
+                      margin: '0 auto'
+                    }}
+                  >
+                    {result.optimizedResume}
+                  </div>
+                </motion.div>
+
+                {coverLetterError && (
+                  <div className="bg-red-50 p-4 rounded-lg text-red-700">
+                    <div className="flex items-start">
+                      <svg className="h-5 w-5 mr-2 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      <span>{coverLetterError}</span>
+                    </div>
+                  </div>
+                )}
+
+                {coverLetter && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.3 }}
+                    className="rounded-xl border border-gray-200"
+                    style={{
+                      backgroundColor: '#ffffff',
+                      padding: '40px',
+                      maxWidth: '816px',
+                      margin: '0 auto',
+                      boxShadow: 'inset 0 2px 4px 0 rgba(0, 0, 0, 0.06)'
+                    }}
+                  >
+                    <h2 className="text-2xl font-bold text-gray-900 mb-6">Cover Letter</h2>
+                    <div 
+                      className="prose max-w-none text-gray-800"
+                      dangerouslySetInnerHTML={{ __html: coverLetter }}
+                    />
+                  </motion.div>
+                )}
+              </div>
             ) : (
               <motion.div
                 initial={{ opacity: 0 }}
