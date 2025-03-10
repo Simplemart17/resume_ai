@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import axios from 'axios';
+import axios, { AxiosError } from 'axios';
 
 // List of allowed domains for proxy requests
 const ALLOWED_DOMAINS = [
@@ -8,22 +8,59 @@ const ALLOWED_DOMAINS = [
   'linkedin.com',
   'www.linkedin.com',
   'glassdoor.com',
-  'www.glassdoor.com'
+  'www.glassdoor.com',
+  'www.wellfound.com',
+  'wellfound.com',
 ];
 
-// User agent rotation to avoid being blocked
+// List of rotating user agents to mimic different browsers
 const USER_AGENTS = [
-  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/96.0.4664.110 Safari/537.36',
-  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.1 Safari/605.1.15',
-  'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/96.0.4664.45 Safari/537.36',
-  'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:94.0) Gecko/20100101 Firefox/94.0',
-  'Mozilla/5.0 (iPhone; CPU iPhone OS 15_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.1 Mobile/15E148 Safari/604.1'
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:123.0) Gecko/20100101 Firefox/123.0',
+  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.3.1 Safari/605.1.15',
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Edge/122.0.2365.92'
 ];
 
 // Get a random user agent
-function getRandomUserAgent(): string {
+function getRandomUserAgent() {
   return USER_AGENTS[Math.floor(Math.random() * USER_AGENTS.length)];
 }
+
+// Site-specific headers
+const SITE_HEADERS: Record<string, Record<string, string>> = {
+  'glassdoor.com': {
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+    'Accept-Language': 'en-US,en;q=0.5',
+    'Accept-Encoding': 'gzip, deflate, br',
+    'DNT': '1',
+    'Sec-Fetch-Dest': 'document',
+    'Sec-Fetch-Mode': 'navigate',
+    'Sec-Fetch-Site': 'none',
+    'Sec-Fetch-User': '?1',
+    'Upgrade-Insecure-Requests': '1',
+    'Pragma': 'no-cache',
+    'Cache-Control': 'no-cache'
+  },
+  'monster.com': {
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+    'Accept-Language': 'en-US,en;q=0.5',
+    'Accept-Encoding': 'gzip, deflate, br',
+    'DNT': '1',
+    'Sec-Fetch-Dest': 'document',
+    'Sec-Fetch-Mode': 'navigate',
+    'Sec-Fetch-Site': 'none'
+  },
+  'ziprecruiter.com': {
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+    'Accept-Language': 'en-US,en;q=0.5',
+    'Accept-Encoding': 'gzip, deflate, br',
+    'DNT': '1',
+    'Sec-Fetch-Dest': 'document',
+    'Sec-Fetch-Mode': 'navigate',
+    'Sec-Fetch-Site': 'none'
+  }
+};
 
 // In-memory rate limiting store (for demonstration)
 // In production, use Redis or a database
@@ -69,6 +106,7 @@ export async function POST(request: NextRequest) {
     let targetUrl: URL;
     try {
       targetUrl = new URL(url);
+      console.log(targetUrl)
     } catch {
       return NextResponse.json(
         { error: 'Invalid URL' },
@@ -79,35 +117,79 @@ export async function POST(request: NextRequest) {
     // Check if the domain is allowed
     if (!ALLOWED_DOMAINS.includes(targetUrl.hostname)) {
       return NextResponse.json(
-        { error: 'Domain not allowed for proxy requests' },
+        { error: `Domain "${targetUrl.hostname}" is not allowed for proxy requests` },
         { status: 403 }
       );
     }
     
-    // Set headers to mimic a real browser
+    // Get site-specific headers
+    const siteKey = Object.keys(SITE_HEADERS).find(key => targetUrl.hostname.includes(key));
     const headers = {
-      'User-Agent': getRandomUserAgent(),
-      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-      'Accept-Language': 'en-US,en;q=0.5',
-      'Referer': 'https://www.google.com/',
-      'DNT': '1',
-      'Connection': 'keep-alive',
-      'Upgrade-Insecure-Requests': '1',
-      'Cache-Control': 'max-age=0',
+      ...{
+        'User-Agent': getRandomUserAgent(),
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.5',
+        'Accept-Encoding': 'gzip, deflate, br',
+        'Connection': 'keep-alive',
+        'Sec-Fetch-Dest': 'document',
+        'Sec-Fetch-Mode': 'navigate',
+        'Sec-Fetch-Site': 'none',
+        'Pragma': 'no-cache',
+        'Cache-Control': 'no-cache'
+      },
+      ...(siteKey ? SITE_HEADERS[siteKey] : {})
     };
 
     // Make the request to the target URL
     console.log(`Proxying request to ${url}`);
-    const response = await axios.get(url, { headers });
-    
-    // Return the HTML content
-    return NextResponse.json({ 
-      html: response.data 
-    });
+    try {
+      const response = await axios.get(url, { 
+        headers,
+        timeout: 15000,
+        maxRedirects: 5,
+        validateStatus: (status) => status < 400
+      });
+      
+      // Return the HTML content
+      if (!response.data || typeof response.data !== 'string') {
+        return NextResponse.json(
+          { error: 'Invalid response from target site' },
+          { status: 502 }
+        );
+      }
+      
+      return NextResponse.json({ 
+        html: response.data 
+      });
+    } catch (error) {
+      // Handle common axios errors
+      const axiosError = error as AxiosError;
+      
+      if (axiosError.code === 'ECONNABORTED') {
+        return NextResponse.json(
+          { error: 'Request to job site timed out. Please try again later.' },
+          { status: 504 }
+        );
+      }
+      
+      if (axiosError.response) {
+        // The server responded with a status code outside the 2xx range
+        return NextResponse.json(
+          { error: `Job site returned error status: ${axiosError.response.status}` },
+          { status: 502 }
+        );
+      }
+      
+      return NextResponse.json(
+        { error: `Error fetching from job site: ${axiosError.message || 'Unknown error'}` },
+        { status: 502 }
+      );
+    }
   } catch (error) {
     console.error('Error in proxy API:', error);
+    const message = error instanceof Error ? error.message : 'Unknown error';
     return NextResponse.json(
-      { error: 'Failed to fetch content' },
+      { error: `Failed to fetch content: ${message}` },
       { status: 500 }
     );
   }

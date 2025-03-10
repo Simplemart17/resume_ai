@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import * as cheerio from 'cheerio';
 import axios from 'axios';
-import { JSDOM } from 'jsdom';
 import jobCache from '@/utils/cache';
+import { JOB_API } from '@/config/jobApis';
 
 // Define the interface for job postings
 interface JobPosting {
@@ -14,205 +13,94 @@ interface JobPosting {
   date: string;
 }
 
-// In-memory rate limiting store (for demonstration)
-// In production, use Redis or a database
+// Adzuna API response types
+interface AdzunaJob {
+  title: string;
+  company: { display_name: string };
+  location: { display_name: string; area: string[] };
+  description: string;
+  redirect_url: string;
+  created: string;
+  salary_min?: number;
+  salary_max?: number;
+  category: { label: string };
+}
+
+interface AdzunaResponse {
+  results: AdzunaJob[];
+  count: number;
+}
+
+// In-memory rate limiting store
 const rateLimitStore: Record<string, { count: number, timestamp: number }> = {};
 
 // Clear expired rate limit entries every hour
 setInterval(() => {
   const now = Date.now();
   Object.keys(rateLimitStore).forEach(key => {
-    if (now - rateLimitStore[key].timestamp > 3600000) { // 1 hour
+    if (now - rateLimitStore[key].timestamp > 3600000) {
       delete rateLimitStore[key];
     }
   });
-}, 3600000); // Check every hour
+}, 3600000);
 
 // Check if the user has exceeded rate limits
 function checkRateLimit(ip: string): boolean {
   const now = Date.now();
   
-  if (rateLimitStore[ip] && (now - rateLimitStore[ip].timestamp) < 60000) { // 1 minute
-    if (rateLimitStore[ip].count >= 5) { // Max 5 requests per minute
-      return true; // Rate limit exceeded
+  if (rateLimitStore[ip] && (now - rateLimitStore[ip].timestamp) < 60000) {
+    if (rateLimitStore[ip].count >= 5) {
+      return true;
     }
     rateLimitStore[ip].count += 1;
   } else {
     rateLimitStore[ip] = { count: 1, timestamp: now };
   }
   
-  return false; // Not rate limited
+  return false;
 }
 
-// Configuration for different job sites
-interface JobSiteConfig {
-  searchUrl: (keywords: string, location: string) => string;
-  scrapeJobs: (html: string, baseUrl: string) => Promise<JobPosting[]>;
+// Function to normalize Adzuna job data
+function normalizeJobData(data: AdzunaResponse): JobPosting[] {
+  return data.results.map(job => ({
+    title: job.title,
+    company: job.company.display_name,
+    location: job.location.display_name,
+    description: job.description,
+    url: job.redirect_url,
+    date: new Date(job.created).toLocaleDateString(),
+    // Additional fields available but not used in current interface:
+    // salary_range: job.salary_min && job.salary_max ? `$${job.salary_min.toLocaleString()} - $${job.salary_max.toLocaleString()}` : undefined,
+    // category: job.category.label
+  }));
 }
 
-// Define scraping configurations for different job sites
-const JOB_SITE_CONFIGS: Record<string, JobSiteConfig> = {
-  indeed: {
-    searchUrl: (keywords: string, location: string) => 
-      `https://www.indeed.com/jobs?q=${encodeURIComponent(keywords)}${location ? `&l=${encodeURIComponent(location)}` : ''}`,
-    
-    scrapeJobs: async (html: string, baseUrl: string): Promise<JobPosting[]> => {
-      const $ = cheerio.load(html);
-      const jobs: JobPosting[] = [];
-      
-      // Indeed job cards
-      $('.job_seen_beacon').each((i, element) => {
-        if (jobs.length >= 10) return false; // Limit to 10 results
-        
-        const title = $(element).find('.jobTitle').text().trim();
-        const company = $(element).find('.companyName').text().trim();
-        const location = $(element).find('.companyLocation').text().trim();
-        const description = $(element).find('.job-snippet').text().trim();
-        
-        let url = $(element).find('a.jcs-JobTitle').attr('href');
-        if (url && !url.startsWith('http')) {
-          url = `${baseUrl}${url.startsWith('/') ? '' : '/'}${url}`;
-        }
-        
-        const date = $(element).find('.date').text().replace('Posted', '').trim() || 'Recently posted';
-        
-        if (title) {
-          jobs.push({
-            title,
-            company,
-            location,
-            description,
-            url: url || baseUrl,
-            date
-          });
-        }
-      });
-      
-      return jobs;
-    }
-  },
-  
-  linkedin: {
-    searchUrl: (keywords: string, location: string) => 
-      `https://www.linkedin.com/jobs/search/?keywords=${encodeURIComponent(keywords)}${location ? `&location=${encodeURIComponent(location)}` : ''}`,
-    
-    scrapeJobs: async (html: string, baseUrl: string): Promise<JobPosting[]> => {
-      const dom = new JSDOM(html);
-      const document = dom.window.document;
-      const jobs: JobPosting[] = [];
-      
-      // LinkedIn job cards
-      const jobCards = document.querySelectorAll('.jobs-search__results-list li');
-      
-      for (let i = 0; i < jobCards.length && jobs.length < 10; i++) {
-        const card = jobCards[i];
-        
-        const titleElement = card.querySelector('.base-search-card__title');
-        const companyElement = card.querySelector('.base-search-card__subtitle');
-        const locationElement = card.querySelector('.job-search-card__location');
-        const linkElement = card.querySelector('a.base-card__full-link');
-        
-        if (titleElement && companyElement) {
-          const title = titleElement.textContent?.trim() || '';
-          const company = companyElement.textContent?.trim() || '';
-          const location = locationElement?.textContent?.trim() || 'Location not specified';
-          const url = linkElement?.getAttribute('href') || baseUrl;
-          
-          jobs.push({
-            title,
-            company,
-            location,
-            description: `Job posting by ${company} for ${title} position.`,
-            url,
-            date: 'Recently posted'
-          });
-        }
-      }
-      
-      return jobs;
-    }
-  }
-};
+// Function to fetch jobs using Adzuna API
+async function fetchJobs(keywords: string, location: string): Promise<JobPosting[]> {
+  const params = JOB_API.buildSearchParams(keywords, location);
+  const url = `${JOB_API.baseUrl}/${JOB_API.country}/search/1`; // Page 1 of results
 
-// Function to fetch and scrape job postings
-async function scrapeJobs(jobSite: string, keywords: string, location: string): Promise<JobPosting[]> {
-  // Default to "indeed" if jobSite is not supported
-  const siteKey = Object.keys(JOB_SITE_CONFIGS).includes(jobSite) ? jobSite : 'indeed';
-  const config = JOB_SITE_CONFIGS[siteKey];
-  
   try {
-    const url = config.searchUrl(keywords, location);
-    const baseUrl = new URL(url).origin;
-    
-    // Use our proxy service to bypass CORS and other restrictions
-    console.log(`Fetching jobs from ${url} via proxy`);
-    const proxyResponse = await axios.post('/api/proxy', { url });
-    
-    if (!proxyResponse.data.html) {
-      throw new Error('Proxy returned empty response');
+    const response = await axios.get<AdzunaResponse>(url, {
+      params,
+      headers: JOB_API.headers,
+      timeout: 10000
+    });
+
+    if (!response.data || !response.data.results) {
+      throw new Error('Empty response from API');
     }
 
-    console.log('Response received, parsing jobs...');
-    // Scrape jobs using the site-specific scraper
-    const jobs = await config.scrapeJobs(proxyResponse.data.html, baseUrl);
-    console.log(`Found ${jobs.length} jobs`);
-    return jobs;
+    return normalizeJobData(response.data);
   } catch (error) {
-    console.error(`Error scraping ${jobSite}:`, error);
-    // Fallback to mock data if scraping fails
-    return getMockJobs(keywords, location);
+    console.error('Error fetching from Adzuna API:', error);
+    throw new Error('Failed to fetch jobs. Please try again later.');
   }
-}
-
-// Mock data as fallback when scraping fails
-function getMockJobs(keywords: string, location: string): JobPosting[] {
-  return [
-    {
-      title: `Senior ${keywords} Developer`,
-      company: 'TechCorp Inc.',
-      location: location || 'Remote',
-      description: `We're looking for an experienced ${keywords} developer to join our team. Must have 5+ years of experience in ${keywords} and related technologies.`,
-      url: 'https://example.com/job1',
-      date: '3 days ago',
-    },
-    {
-      title: `${keywords} Engineer`,
-      company: 'InnovateX',
-      location: location || 'San Francisco, CA',
-      description: `Join our fast-growing team as a ${keywords} Engineer. You'll be responsible for developing and maintaining our core ${keywords} systems.`,
-      url: 'https://example.com/job2',
-      date: 'Posted today',
-    },
-    {
-      title: `Junior ${keywords} Developer`,
-      company: 'StartupHub',
-      location: location || 'New York, NY',
-      description: `Great opportunity for early-career ${keywords} developers. We offer mentorship and growth opportunities in a collaborative environment.`,
-      url: 'https://example.com/job3',
-      date: '1 week ago',
-    },
-    {
-      title: `${keywords} Architect`,
-      company: 'Enterprise Solutions',
-      location: location || 'Chicago, IL',
-      description: `Senior role for an experienced ${keywords} professional to design and implement scalable solutions using cutting-edge technologies.`,
-      url: 'https://example.com/job4',
-      date: '2 weeks ago',
-    },
-    {
-      title: `${keywords} Consultant`,
-      company: 'Global Consulting Group',
-      location: location || 'Remote',
-      description: `Work with diverse clients to provide expert ${keywords} consulting services. Requires strong communication skills and technical expertise.`,
-      url: 'https://example.com/job5',
-      date: '3 days ago',
-    },
-  ];
 }
 
 export async function POST(request: NextRequest) {
   try {
-    const { jobSite, keywords, location } = await request.json();
+    const { keywords, location } = await request.json();
     
     if (!keywords) {
       return NextResponse.json(
@@ -231,45 +119,49 @@ export async function POST(request: NextRequest) {
     }
     
     // Check cache first
-    const cacheKey = jobCache.generateKey(jobSite || 'indeed', keywords, location || '');
+    const cacheKey = jobCache.generateKey('adzuna', keywords, location || '');
     const cachedJobs = jobCache.get(cacheKey) as JobPosting[] | null;
     
     if (cachedJobs) {
       console.log(`Returning cached results for ${keywords}`);
       return NextResponse.json({ 
         jobs: cachedJobs,
-        source: `${jobSite} (cached)`
+        source: 'Adzuna (cached)'
       });
     }
     
     try {
-      // Use actual web scraping
-      console.log(`Searching for ${keywords} jobs on ${jobSite}...`);
-      const jobs = await scrapeJobs(jobSite, keywords, location);
+      // Fetch jobs using Adzuna API
+      console.log(`Searching for ${keywords} jobs...`);
+      const jobs = await fetchJobs(keywords, location);
+      
+      if (jobs.length === 0) {
+        return NextResponse.json(
+          { error: 'No jobs found. Try different keywords or location.' },
+          { status: 404 }
+        );
+      }
       
       // Cache the results
-      if (jobs.length > 0 && !jobs[0].title.includes('Senior')) { // Don't cache mock data
-        jobCache.set(cacheKey, jobs);
-      }
+      jobCache.set(cacheKey, jobs);
       
       return NextResponse.json({ 
         jobs,
-        source: jobSite
+        source: 'Adzuna'
       });
     } catch (error) {
-      console.error('Scraping error:', error);
-      
-      // Fallback to mock data if scraping fails
-      const mockJobs = getMockJobs(keywords, location);
-      return NextResponse.json({ 
-        jobs: mockJobs,
-        source: 'mock-data (scraping failed)'
-      });
+      console.error('API error:', error);
+      return NextResponse.json(
+        { 
+          error: error instanceof Error ? error.message : 'Failed to fetch jobs. Please try again later.'
+        },
+        { status: 500 }
+      );
     }
   } catch (error) {
     console.error('Error in job search API:', error);
     return NextResponse.json(
-      { error: 'Failed to search for jobs' },
+      { error: 'Failed to process job search request' },
       { status: 500 }
     );
   }

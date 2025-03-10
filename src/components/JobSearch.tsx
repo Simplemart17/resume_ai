@@ -11,51 +11,54 @@ interface JobPosting {
 }
 
 export function JobSearch() {
-  const [jobSite, setJobSite] = useState<string>('indeed');
   const [keywords, setKeywords] = useState<string>('');
   const [location, setLocation] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [jobPostings, setJobPostings] = useState<JobPosting[]>([]);
+  const [searchStatus, setSearchStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
+  const [searchStats, setSearchStats] = useState<{source?: string, count: number}>({count: 0});
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     setError(null);
     setJobPostings([]);
+    setSearchStatus('loading');
     
     try {
-      console.log(`Searching for ${keywords} jobs on ${jobSite}...`);
       const response = await fetch('/api/search-jobs', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          jobSite,
           keywords,
           location
         }),
       });
       
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to fetch job postings');
-      }
-      
       const data = await response.json();
       
-      if (data.source === 'mock-data' || data.source === 'mock-data (scraping failed)') {
-        setError('Unable to scrape real job postings. Showing sample results instead.');
+      if (!response.ok) {
+        setSearchStatus('error');
+        throw new Error(data.error || 'Failed to fetch job postings');
       }
       
       if (data.jobs.length === 0) {
+        setSearchStatus('error');
         setError('No job postings found matching your criteria. Try different keywords or location.');
       } else {
+        setSearchStatus('success');
         setJobPostings(data.jobs);
+        setSearchStats({
+          source: data.source,
+          count: data.jobs.length
+        });
       }
     } catch (error) {
       console.error('Error fetching job postings:', error);
+      setSearchStatus('error');
       if (error instanceof Error) {
         setError(error.message);
       } else {
@@ -80,22 +83,6 @@ export function JobSearch() {
 
       <div className="bg-white shadow-xl rounded-b-xl p-6">
         <form onSubmit={handleSubmit} className="space-y-6">
-          <div>
-            <label htmlFor="jobSite" className="block text-sm font-semibold text-gray-700 mb-1">
-              Job Site
-            </label>
-            <select
-              id="jobSite"
-              value={jobSite}
-              onChange={(e) => setJobSite(e.target.value)}
-              className="block w-full p-3 border border-gray-300 rounded-lg text-gray-900"
-            >
-              <option value="indeed">Indeed</option>
-              <option value="linkedin">LinkedIn</option>
-              <option value="glassdoor">Glassdoor</option>
-            </select>
-          </div>
-
           <div>
             <label htmlFor="keywords" className="block text-sm font-semibold text-gray-700 mb-1">
               Keywords (job title, skills, etc.)
@@ -140,8 +127,23 @@ export function JobSearch() {
         </form>
 
         {error && (
-          <div className="mt-4 p-4 text-red-700 bg-red-100 rounded-lg">
-            {error}
+          <div className="mt-4 p-4 text-red-700 bg-red-100 rounded-lg flex items-start">
+            <svg className="h-5 w-5 mr-2 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <span>{error}</span>
+          </div>
+        )}
+
+        {searchStatus === 'success' && (
+          <div className="mt-4 p-4 text-green-700 bg-green-100 rounded-lg flex items-start">
+            <svg className="h-5 w-5 mr-2 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <span>
+              Found {searchStats.count} job postings matching your criteria
+              {searchStats.source && ` from ${searchStats.source}`}.
+            </span>
           </div>
         )}
 
