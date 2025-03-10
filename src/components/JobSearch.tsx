@@ -69,6 +69,15 @@ export function JobSearch() {
     }
   };
 
+  const handleGenerateCoverLetter = (job: JobPosting) => {
+    const searchParams = new URLSearchParams({
+      jobTitle: job.title,
+      company: job.company,
+      jobDesc: job.description
+    });
+    window.location.href = `/cover-letter?${searchParams.toString()}`;
+  };
+
   return (
     <div className="max-w-4xl mx-auto">
       <div 
@@ -163,7 +172,7 @@ export function JobSearch() {
                   <p className="text-gray-600">{job.company} • {job.location}</p>
                   <p className="text-gray-500 text-sm mt-1">{job.date}</p>
                   <p className="mt-2 text-gray-700 line-clamp-3">{job.description}</p>
-                  <div className="mt-3 flex justify-between items-center">
+                  <div className="mt-3 flex flex-wrap gap-2 items-center justify-between">
                     <a
                       href={job.url}
                       target="_blank"
@@ -173,13 +182,22 @@ export function JobSearch() {
                     >
                       View Job
                     </a>
-                    <button
-                      onClick={() => window.location.href = `/optimize?jobDesc=${encodeURIComponent(job.description)}`}
-                      className="px-3 py-1 text-sm rounded-lg border border-indigo-600 text-indigo-600 hover:bg-indigo-50"
-                      style={{ color: '#4f46e5', borderColor: '#4f46e5' }}
-                    >
-                      Optimize Resume
-                    </button>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => window.location.href = `/optimize?jobDesc=${encodeURIComponent(job.description)}`}
+                        className="px-3 py-1 text-sm rounded-lg border border-indigo-600 text-indigo-600 hover:bg-indigo-50 transition-colors"
+                        style={{ color: '#4f46e5', borderColor: '#4f46e5' }}
+                      >
+                        Optimize Resume
+                      </button>
+                      <button
+                        onClick={() => handleGenerateCoverLetter(job)}
+                        className="px-3 py-1 text-sm rounded-lg text-white hover:bg-indigo-700 transition-colors"
+                        style={{ backgroundColor: '#4f46e5' }}
+                      >
+                        Generate Cover Letter
+                      </button>
+                    </div>
                   </div>
                 </motion.div>
               ))}
