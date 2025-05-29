@@ -1,13 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
-
 export async function POST(request: NextRequest) {
   try {
     const { jobTitle, company, jobDescription } = await request.json();
+
+    // Get API key from Authorization header or environment
+    const authHeader = request.headers.get('authorization');
+    const apiKey = authHeader?.replace('Bearer ', '') || process.env.OPENAI_API_KEY;
+
+    if (!apiKey) {
+      return NextResponse.json(
+        { error: 'OpenAI API key is required' },
+        { status: 401 }
+      );
+    }
+
+    // Initialize OpenAI client with the provided API key
+    const openai = new OpenAI({
+      apiKey: apiKey,
+    });
 
     if (!jobTitle || !company || !jobDescription) {
       return NextResponse.json(
@@ -16,7 +28,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const prompt = `Write a professional cover letter for a ${jobTitle} position at ${company}. 
+    const prompt = `Write a professional cover letter for a ${jobTitle} position at ${company}.
     Use the following job description to tailor the cover letter:
     ${jobDescription}
 
@@ -61,4 +73,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-} 
+}
