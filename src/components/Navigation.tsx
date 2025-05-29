@@ -28,22 +28,11 @@ export function Navigation() {
               >
                 Resume Formatter
               </Link>
-              <Link
-                href="/search-jobs"
-                className={`inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium ${
-                  pathname === '/search-jobs'
-                    ? 'border-indigo-500 text-gray-900'
-                    : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
-                }`}
-                style={pathname === '/search-jobs' ? { borderColor: '#6366f1', color: '#111827' } : {}}
-              >
-                Job Search
-              </Link>
             </div>
           </div>
           <div className="hidden sm:ml-6 sm:flex sm:items-center">
             <a 
-              href="https://github.com/yourusername/resume-ai"
+              href="https://github.com/simplemart17/resume_ai"
               target="_blank"
               rel="noopener noreferrer"
               className="text-gray-500 hover:text-gray-700"

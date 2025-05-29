@@ -1,8 +1,14 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { FileUploader } from './FileUploader';
+import { ApiKeyManager } from './ApiKeyManager';
+import { ResumeTemplates } from './ResumeTemplates';
+import { JobApplicationFiller } from './JobApplicationFiller';
+import { SkillsVisualization } from './SkillsVisualization';
 import { motion } from 'framer-motion';
+import { apiKeyManager } from '@/utils/apiKeyManager';
+import toast, { Toaster } from 'react-hot-toast';
 
 interface FormattedResult {
   optimizedResume: string;
@@ -14,15 +20,21 @@ interface FormattedResult {
 
 export function ResumeFormatter() {
   const [resumeFile, setResumeFile] = useState<File | null>(null);
+  const [resumeText, setResumeText] = useState('');
   const [jobDescription, setJobDescription] = useState('');
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<FormattedResult | null>(null);
   const [error, setError] = useState('');
-  const [activeTab, setActiveTab] = useState<'resume' | 'analysis'>('resume');
+  const [activeTab, setActiveTab] = useState<'resume' | 'analysis' | 'templates' | 'autofill' | 'dashboard'>('resume');
   const [coverLetter, setCoverLetter] = useState<string>('');
   const [generatingCoverLetter, setGeneratingCoverLetter] = useState(false);
   const [coverLetterError, setCoverLetterError] = useState<string | null>(null);
+  const [hasApiKey, setHasApiKey] = useState(false);
   const resumeRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setHasApiKey(apiKeyManager.hasApiKey());
+  }, []);
 
   const handleFileChange = (file: File | null) => {
     setResumeFile(file);
@@ -31,11 +43,18 @@ export function ResumeFormatter() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Only check for API key in production
+    if (process.env.NODE_ENV === 'production' && !hasApiKey) {
+      toast.error('Please provide an OpenAI API key to use AI features');
+      return;
+    }
+
     setLoading(true);
     setError('');
     setCoverLetter('');
     setCoverLetterError(null);
-    
+
     try {
       if (!resumeFile) {
         throw new Error('Please upload a resume file');
@@ -44,27 +63,35 @@ export function ResumeFormatter() {
       // First, upload the file and get the text content
       const formData = new FormData();
       formData.append('file', resumeFile);
-      
+
       const uploadResponse = await fetch('/api/upload-resume', {
         method: 'POST',
         body: formData,
       });
-      
+
       if (!uploadResponse.ok) {
         throw new Error('Failed to process resume file');
       }
-      
-      const { text } = await uploadResponse.json();
 
-      // Now format the resume
+      const { text } = await uploadResponse.json();
+      setResumeText(text);
+
+      // Now format the resume with API key (only in production)
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+
+      // Only add Authorization header in production
+      if (process.env.NODE_ENV === 'production' && apiKeyManager.getApiKey()) {
+        headers['Authorization'] = `Bearer ${apiKeyManager.getApiKey()}`;
+      }
+
       const formatResponse = await fetch('/api/format-resume', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers,
         body: JSON.stringify({ resume: text, jobDescription }),
       });
-      
+
       if (!formatResponse.ok) {
         const errorData = await formatResponse.json();
         throw new Error(errorData.error || 'Failed to format resume');
@@ -72,9 +99,12 @@ export function ResumeFormatter() {
 
       const data = await formatResponse.json();
       setResult(data);
+      toast.success('Resume optimized successfully!');
     } catch (error) {
       console.error('Error:', error);
-      setError(error instanceof Error ? error.message : 'An error occurred');
+      const errorMessage = error instanceof Error ? error.message : 'An error occurred';
+      setError(errorMessage);
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -82,16 +112,23 @@ export function ResumeFormatter() {
 
   const handleGenerateCoverLetter = async () => {
     if (!result || !jobDescription) return;
-    
+
     setGeneratingCoverLetter(true);
     setCoverLetterError(null);
 
     try {
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+
+      // Only add Authorization header in production
+      if (process.env.NODE_ENV === 'production' && apiKeyManager.getApiKey()) {
+        headers['Authorization'] = `Bearer ${apiKeyManager.getApiKey()}`;
+      }
+
       const response = await fetch('/api/generate-cover-letter', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers,
         body: JSON.stringify({
           jobTitle: jobDescription.match(/(?:position|job title|role):?\s*([^.;\n]+)/i)?.[1] || 'the position',
           company: jobDescription.match(/(?:at|with|for)\s+([^.;\n]+)/i)?.[1] || 'the company',
@@ -115,25 +152,34 @@ export function ResumeFormatter() {
   };
 
   return (
-    <div className="max-w-4xl mx-auto">
-      <div 
+    <div className="max-w-6xl mx-auto">
+      <Toaster position="top-right" />
+
+      {/* Header */}
+      <div
         className="py-8 px-6 rounded-t-xl text-white"
         style={{
-          background: 'linear-gradient(to right, rgb(79, 70, 229), rgb(147, 51, 234))'
+          background: 'linear-gradient(135deg, rgb(79, 70, 229) 0%, rgb(147, 51, 234) 50%, rgb(236, 72, 153) 100%)'
         }}
       >
-        <h1 className="text-3xl font-bold text-center mb-2">AI Resume Optimizer</h1>
-        <p className="text-center opacity-90">Upload your resume and job description to get AI-powered optimization</p>
+        <h1 className="text-4xl font-bold text-center mb-2">AI Resume Optimizer Pro</h1>
+        <p className="text-center opacity-90 text-lg">Transform your resume with AI-powered optimization, templates, and job application tools</p>
       </div>
 
-      <div className="bg-white shadow-xl rounded-b-xl p-6">
-        <motion.form 
-          onSubmit={handleSubmit} 
-          className="space-y-6"
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-        >
+      <div className="bg-white shadow-xl rounded-b-xl">
+        {/* API Key Management */}
+        <div className="p-6 border-b border-gray-200">
+          <ApiKeyManager onApiKeySet={setHasApiKey} />
+        </div>
+        {/* Main Form */}
+        <div className="p-6">
+          <motion.form
+            onSubmit={handleSubmit}
+            className="space-y-6"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
+          >
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-4">
               <label className="block text-sm font-semibold text-gray-700 mb-2">
@@ -145,7 +191,7 @@ export function ResumeFormatter() {
                 accept=".pdf,.doc,.docx,.txt"
               />
               {error && (
-                <motion.p 
+                <motion.p
                   className="mt-2 text-sm text-red-600"
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
@@ -208,38 +254,38 @@ export function ResumeFormatter() {
         </motion.form>
 
         {result && (
-          <motion.div 
+          <motion.div
             className="mt-12"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.2 }}
           >
             <div className="flex justify-between items-center mb-8">
-              <div className="flex space-x-2 mb-6">
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('resume')}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                    activeTab === 'resume'
-                    ? 'text-white'
-                    : 'text-gray-700 hover:bg-gray-200 bg-gray-100'
-                  }`}
-                  style={activeTab === 'resume' ? { backgroundColor: '#4f46e5' } : {}}
-                >
-                  Resume
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('analysis')}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                    activeTab === 'analysis'
-                    ? 'text-white'
-                    : 'text-gray-700 hover:bg-gray-200 bg-gray-100'
-                  }`}
-                  style={activeTab === 'analysis' ? { backgroundColor: '#4f46e5' } : {}}
-                >
-                  Analysis
-                </button>
+              <div className="flex flex-wrap gap-2 mb-6">
+                {[
+                  { id: 'resume', label: 'Resume', icon: '📄' },
+                  { id: 'analysis', label: 'Analysis', icon: '📊' },
+                  { id: 'dashboard', label: 'Dashboard', icon: '📈' },
+                  { id: 'templates', label: 'Templates', icon: '🎨' },
+                  { id: 'autofill', label: 'Auto-Fill', icon: '🚀' }
+                ].map((tab) => (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => setActiveTab(tab.id as typeof activeTab)}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 flex items-center space-x-2 ${
+                      activeTab === tab.id
+                      ? 'text-white shadow-lg transform scale-105'
+                      : 'text-gray-700 hover:bg-gray-200 bg-gray-100 hover:scale-102'
+                    }`}
+                    style={activeTab === tab.id ? {
+                      background: 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)'
+                    } : {}}
+                  >
+                    <span>{tab.icon}</span>
+                    <span>{tab.label}</span>
+                  </button>
+                ))}
               </div>
 
               {activeTab === 'resume' && !coverLetter && (
@@ -270,6 +316,7 @@ export function ResumeFormatter() {
               )}
             </div>
 
+            {/* Tab Content */}
             {activeTab === 'resume' ? (
               <div className="space-y-8">
                 <motion.div
@@ -286,9 +333,9 @@ export function ResumeFormatter() {
                     boxShadow: 'inset 0 2px 4px 0 rgba(0, 0, 0, 0.06)'
                   }}
                 >
-                  <div 
+                  <div
                     className="whitespace-pre-wrap text-base leading-relaxed"
-                    style={{ 
+                    style={{
                       fontFamily: 'Times New Roman, serif',
                       color: '#1f2937',
                       margin: '0 auto'
@@ -324,14 +371,14 @@ export function ResumeFormatter() {
                     }}
                   >
                     <h2 className="text-2xl font-bold text-gray-900 mb-6">Cover Letter</h2>
-                    <div 
+                    <div
                       className="prose max-w-none text-gray-800"
                       dangerouslySetInnerHTML={{ __html: coverLetter }}
                     />
                   </motion.div>
                 )}
               </div>
-            ) : (
+            ) : activeTab === 'analysis' ? (
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
@@ -347,7 +394,7 @@ export function ResumeFormatter() {
                       </div>
                     </div>
                     <div className="overflow-hidden h-2 mt-4 text-xs flex rounded bg-gray-200">
-                      <motion.div 
+                      <motion.div
                         className="rounded"
                         style={{
                           background: 'linear-gradient(to right, rgb(99, 102, 241), rgb(168, 85, 247))'
@@ -431,10 +478,51 @@ export function ResumeFormatter() {
                   </div>
                 </div>
               </motion.div>
-            )}
+            ) : activeTab === 'dashboard' ? (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.3 }}
+              >
+                {result ? (
+                  <SkillsVisualization
+                    matchingSkills={result.matchingSkills}
+                    missingSkills={result.missingSkills}
+                    matchScore={result.matchScore}
+                  />
+                ) : (
+                  <div className="text-center py-12 text-gray-500">
+                    <div className="text-6xl mb-4">📈</div>
+                    <h3 className="text-xl font-semibold mb-2">No Analysis Available</h3>
+                    <p>Upload and optimize your resume first to see the dashboard</p>
+                  </div>
+                )}
+              </motion.div>
+            ) : activeTab === 'templates' ? (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.3 }}
+              >
+                <ResumeTemplates
+                  resumeText={result?.optimizedResume || resumeText}
+                />
+              </motion.div>
+            ) : activeTab === 'autofill' ? (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.3 }}
+              >
+                <JobApplicationFiller
+                  resumeText={result?.optimizedResume || resumeText}
+                />
+              </motion.div>
+            ) : null}
           </motion.div>
         )}
+        </div>
       </div>
     </div>
   );
-} 
+}

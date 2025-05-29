@@ -1,14 +1,26 @@
 import { NextResponse } from 'next/server';
 import OpenAI from 'openai';
 
-// Initialize OpenAI client
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
-
 export async function POST(request: Request) {
   try {
     const { resume, jobDescription } = await request.json();
+
+
+
+    // Get API key from Authorization header or environment
+    const authHeader = request.headers.get('authorization');
+    const apiKey = authHeader?.replace('Bearer ', '') || process.env.OPENAI_API_KEY;
+    if (!apiKey) {
+      return NextResponse.json(
+        { error: 'OpenAI API key is required' },
+        { status: 401 }
+      );
+    }
+
+    // Initialize OpenAI client with the provided API key
+    const openai = new OpenAI({
+      apiKey: apiKey,
+    });
 
     if (!resume || !jobDescription) {
       return NextResponse.json(
@@ -104,12 +116,31 @@ Your task is to analyze and optimize resumes to maximize their match with specif
     }
 
     const response = JSON.parse(content);
+
     return NextResponse.json(response);
   } catch (error) {
     console.error('Error in resume formatting:', error);
+
+    // Provide more specific error messages
+    let errorMessage = 'Failed to format resume';
+
+    if (error instanceof Error) {
+      if (error.message.includes('API key')) {
+        errorMessage = 'Invalid or missing OpenAI API key';
+      } else if (error.message.includes('quota')) {
+        errorMessage = 'OpenAI API quota exceeded. Please check your billing.';
+      } else if (error.message.includes('rate limit')) {
+        errorMessage = 'Rate limit exceeded. Please try again in a moment.';
+      } else if (error.message.includes('JSON')) {
+        errorMessage = 'Failed to parse AI response. Please try again.';
+      } else {
+        errorMessage = `AI processing error: ${error.message}`;
+      }
+    }
+
     return NextResponse.json(
-      { error: 'Failed to format resume' },
+      { error: errorMessage },
       { status: 500 }
     );
   }
-} 
+}
