@@ -1,43 +1,39 @@
-# AI Resume Optimizer Pro 🚀
+# ResumeAI Pro 🚀
 
-A comprehensive AI-powered resume optimization platform that helps job seekers create, optimize, and manage their resumes with advanced features including PDF generation, job application auto-fill, and detailed analytics.
+A modern, AI-powered resume builder that helps you create professional resumes with beautiful templates, AI optimization, and instant PDF downloads. Complete redesign with modern UI and enhanced functionality.
 
-## ✨ Features
+## ✨ New Features
 
-### 🤖 AI-Powered Resume Optimization
-- Upload resumes in PDF, DOCX, or TXT format
-- AI-powered optimization based on job descriptions
-- Match score analysis with detailed feedback
-- Skill gap identification and recommendations
+### 🎨 Modern Landing Page
+- Beautiful, responsive design with gradient backgrounds
+- Feature showcase with animations
+- Professional template gallery
+- Pricing tiers and call-to-action sections
 
-### 🎨 Professional Resume Templates
-- **Modern Professional**: Clean, modern design with accent colors
-- **Classic Traditional**: Traditional format for conservative industries  
-- **Creative Designer**: Bold design for creative professionals
-- One-click PDF generation and download
+### 🏗️ Interactive Resume Builder
+- Step-by-step resume creation interface
+- Real-time form validation and preview
+- Drag-and-drop file upload
+- Structured data input for all resume sections
 
-### 📊 Advanced Analytics Dashboard
-- Interactive charts showing skill matches and gaps
-- Overall match score visualization
-- Detailed recommendations for improvement
-- Skills coverage analysis
+### 📄 Professional Templates (NEW)
+- **Modern Professional**: Clean, contemporary design with blue accents
+- **Classic Traditional**: Traditional black and white format
+- **Creative Designer**: Bold, colorful design with pink accents
+- **Executive Premium**: Sophisticated layout for senior positions
+- Custom template upload support
 
-### 🚀 Job Application Auto-Fill
-- Extract key information from your resume
-- Support for major ATS platforms (Greenhouse, Lever, Workday, etc.)
-- One-click copy functionality for quick form filling
-- Smart parsing of contact info, skills, and experience
+### 🤖 AI-Powered Features
+- Resume parsing and data extraction
+- Smart content suggestions (coming soon)
+- Job description matching (coming soon)
+- Skill gap analysis
 
-### 🔑 Flexible API Key Management
-- Use your own OpenAI API key for privacy and control
-- Secure local storage (localStorage/sessionStorage)
-- Development environment fallback
-- No server-side API key storage
-
-### 📝 AI Cover Letter Generation
-- Automatically generate tailored cover letters
-- Match cover letter content to job requirements
-- Professional formatting and structure
+### 📱 Enhanced User Experience
+- Mobile-first responsive design
+- Smooth animations and transitions
+- Intuitive navigation with tabs
+- Real-time preview and editing
 
 ## 🛠️ Technology Stack
 
@@ -52,7 +48,7 @@ A comprehensive AI-powered resume optimization platform that helps job seekers c
 ## 🚀 Getting Started
 
 ### Prerequisites
-- Node.js 18+ 
+- Node.js 18+
 - npm or yarn
 - OpenAI API key (get one from [OpenAI Platform](https://platform.openai.com/api-keys))
 
@@ -92,49 +88,66 @@ yarn dev
 
 ## 📖 Usage Guide
 
-### 1. API Key Setup
-- In production, you'll be prompted to enter your OpenAI API key
-- Choose to store it locally (persistent) or for the session only
-- In development, the app uses the environment variable as fallback
+### 1. Landing Page Experience
+- Visit the modern landing page with feature overview
+- Browse template gallery and pricing information
+- Click "Get Started" to access the resume builder at `/builder`
 
-### 2. Resume Optimization
-- Upload your resume (PDF, DOCX, or TXT)
-- Paste the job description you're targeting
-- Click "Optimize Resume" to get AI-powered improvements
-- Review the optimized resume and analysis
+### 2. Resume Builder Interface
+- **Upload Tab**: Upload existing resume (PDF, DOCX, TXT) for automatic parsing
+- **Build Tab**: Create resume from scratch with structured forms
+- **Templates Tab**: Choose from 4 professional templates and generate PDFs
+- **AI Optimize Tab**: AI-powered optimization (coming soon)
+- **Auto-Fill Tab**: Extract data for job applications
+- **Analytics Tab**: View resume performance metrics
 
-### 3. Templates & PDF Export
-- Navigate to the "Templates" tab
-- Choose from 3 professional templates
-- Download your optimized resume as a PDF
+### 3. Building Your Resume
+- Fill in personal information (name, email, phone, location)
+- Write a compelling professional summary
+- Add work experience with detailed descriptions
+- Include education background and achievements
+- Add relevant skills with easy tag management
 
-### 4. Analytics Dashboard
-- View the "Dashboard" tab for detailed analytics
-- See skill matches, gaps, and recommendations
-- Interactive charts show your resume's performance
+### 4. Template Selection & PDF Generation
+- Choose from 4 professionally designed templates:
+  - **Modern Professional**: Blue accents, contemporary design
+  - **Classic Traditional**: Black & white, conservative format
+  - **Creative Designer**: Pink accents, bold design
+  - **Executive Premium**: Sophisticated layout for senior roles
+- Upload custom templates (PDF/image format)
+- Generate high-quality PDFs with one click
 
-### 5. Job Application Auto-Fill
-- Go to the "Auto-Fill" tab
-- Click "Extract Info" to parse your resume
-- Copy the extracted information to quickly fill job applications
-- Supports major ATS platforms
+### 5. Advanced Features
+- Resume parsing with automatic data extraction
+- Job application auto-fill functionality
+- Analytics dashboard for optimization insights
+- Mobile-responsive design for editing anywhere
 
 ## 🎨 Templates
 
 ### Modern Professional
-- Clean, contemporary design
-- Accent colors and modern typography
-- Perfect for tech and business roles
+- Clean, contemporary design with blue accent colors
+- Modern typography and professional layout
+- Perfect for tech, business, and corporate roles
+- ATS-friendly format with clear section headers
 
-### Classic Traditional  
+### Classic Traditional
 - Traditional black and white format
-- Conservative styling
-- Ideal for traditional industries
+- Conservative styling with elegant typography
+- Ideal for traditional industries (law, finance, government)
+- Two-column layout for education and skills
 
 ### Creative Designer
-- Bold, colorful design
-- Creative layout and styling
-- Great for design and creative roles
+- Bold, colorful design with pink accent colors
+- Creative layout with visual appeal
+- Great for design, marketing, and creative professionals
+- Eye-catching header with modern styling
+
+### Executive Premium
+- Sophisticated layout for senior-level positions
+- Professional styling with elegant typography
+- Perfect for C-level executives and leadership roles
+- Clean, authoritative design that commands attention
 
 ## 🔧 Configuration
 
@@ -148,7 +161,7 @@ The app supports flexible API key management:
 
 ### Supported File Formats
 - **PDF**: Full text extraction
-- **DOCX**: Microsoft Word documents  
+- **DOCX**: Microsoft Word documents
 - **TXT**: Plain text files
 
 ### Supported ATS Platforms
