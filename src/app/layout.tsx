@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-import { Navigation } from "@/components/Navigation";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -14,8 +13,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "AI Resume Optimizer",
-  description: "Optimize your resume for job applications using AI",
+  title: "ResumeAI Pro - AI-Powered Resume Builder",
+  description: "Create professional resumes with AI-powered optimization, beautiful templates, and instant PDF downloads. Build your perfect resume in minutes.",
+  keywords: "resume builder, AI resume, professional templates, PDF generator, job application, career tools",
 };
 
 export default function RootLayout({
@@ -28,7 +28,6 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <Navigation />
         {children}
       </body>
     </html>
