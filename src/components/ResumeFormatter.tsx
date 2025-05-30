@@ -9,6 +9,7 @@ import { SkillsVisualization } from './SkillsVisualization';
 import { motion } from 'framer-motion';
 import { apiKeyManager } from '@/utils/apiKeyManager';
 import toast, { Toaster } from 'react-hot-toast';
+import Link from 'next/link';
 
 interface FormattedResult {
   optimizedResume: string;
@@ -164,6 +165,26 @@ export function ResumeFormatter() {
       >
         <h1 className="text-4xl font-bold text-center mb-2">AI Resume Optimizer Pro</h1>
         <p className="text-center opacity-90 text-lg">Transform your resume with AI-powered optimization, templates, and job application tools</p>
+                {/* Navigation */}
+        <div className="flex justify-center my-8">
+          <div className="bg-white rounded-lg shadow-lg p-2 flex gap-2">
+            <Link
+              href="/builder"
+              className="px-4 py-2 text-gray-600 hover:text-blue-600 rounded-lg transition-colors"
+            >
+              Resume Builder
+            </Link>
+            <div className="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium">
+              AI Optimizer
+            </div>
+            <Link
+              href="/autofill"
+              className="px-4 py-2 text-gray-600 hover:text-blue-600 rounded-lg transition-colors"
+            >
+              Auto-Fill 
+            </Link>
+          </div>
+        </div>
       </div>
 
       <div className="bg-white shadow-xl rounded-b-xl">
