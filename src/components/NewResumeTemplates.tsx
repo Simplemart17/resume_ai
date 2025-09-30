@@ -151,7 +151,7 @@ export function NewResumeTemplates({
               Upload Custom Template
             </h3>
             <p className="text-gray-600">
-              Have your own template? Upload it here and we'll format your resume to match.
+              Have your own template? Upload it here and we&apos;ll format your resume to match.
             </p>
           </div>
           <div>
@@ -199,11 +199,10 @@ export function NewResumeTemplates({
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: index * 0.1 }}
-            className={`bg-white rounded-xl shadow-lg overflow-hidden hover:shadow-xl transition-all duration-300 border-2 ${
-              selectedTemplate === template.id
+            className={`bg-white rounded-xl shadow-lg overflow-hidden hover:shadow-xl transition-all duration-300 border-2 ${selectedTemplate === template.id
                 ? 'border-blue-500 ring-2 ring-blue-200'
                 : 'border-gray-200 hover:border-gray-300'
-            }`}
+              }`}
           >
             {/* Template Preview */}
             <div className="h-48 p-4 bg-gray-50 relative">
@@ -243,11 +242,10 @@ export function NewResumeTemplates({
               <div className="space-y-2">
                 <button
                   onClick={() => handleTemplateSelect(template.id)}
-                  className={`w-full py-2 px-4 rounded-lg font-semibold transition-colors duration-200 ${
-                    selectedTemplate === template.id
+                  className={`w-full py-2 px-4 rounded-lg font-semibold transition-colors duration-200 ${selectedTemplate === template.id
                       ? 'bg-blue-600 text-white'
                       : 'bg-gray-100 hover:bg-gray-200 text-gray-800'
-                  }`}
+                    }`}
                 >
                   {selectedTemplate === template.id ? 'Selected' : 'Select Template'}
                 </button>

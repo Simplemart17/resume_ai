@@ -28,7 +28,7 @@ export function JobApplicationFiller({ resumeText }: JobApplicationFillerProps) 
   const extractResumeInfo = (text: string): ExtractedInfo => {
     // Basic extraction logic - in a real app, this would be more sophisticated
     const lines = text.split('\n').map(line => line.trim()).filter(line => line);
-    
+
     // Extract email
     const emailMatch = text.match(/[\w\.-]+@[\w\.-]+\.\w+/);
     const email = emailMatch ? emailMatch[0] : '';
@@ -81,7 +81,7 @@ export function JobApplicationFiller({ resumeText }: JobApplicationFillerProps) 
     }
 
     setIsAnalyzing(true);
-    
+
     // Simulate analysis delay
     setTimeout(() => {
       const info = extractResumeInfo(resumeText);
@@ -96,9 +96,9 @@ export function JobApplicationFiller({ resumeText }: JobApplicationFillerProps) 
       await navigator.clipboard.writeText(text);
       setCopiedField(fieldName);
       toast.success(`${fieldName} copied to clipboard!`);
-      
+
       setTimeout(() => setCopiedField(null), 2000);
-    } catch (error) {
+    } catch {
       toast.error('Failed to copy to clipboard');
     }
   };
@@ -115,14 +115,14 @@ export function JobApplicationFiller({ resumeText }: JobApplicationFillerProps) 
         'indeed.com',
         'linkedin.com'
       ];
-      
+
       return validDomains.some(domain => urlObj.hostname.includes(domain));
     } catch {
       return false;
     }
   };
 
-  const InfoField = ({ label, value, fieldName }: { label: string; value: string; fieldName: string }) => (
+  const InfoField = ({ label, value }: { label: string; value: string; fieldName: string }) => (
     <div className="bg-gray-50 rounded-lg p-4">
       <div className="flex justify-between items-start mb-2">
         <label className="text-sm font-medium text-gray-700">{label}</label>
@@ -216,11 +216,11 @@ export function JobApplicationFiller({ resumeText }: JobApplicationFillerProps) 
             <InfoField label="Email" value={extractedInfo.email} fieldName="email" />
             <InfoField label="Phone" value={extractedInfo.phone} fieldName="phone" />
             <InfoField label="Address" value={extractedInfo.address} fieldName="address" />
-            
+
             <div className="md:col-span-2">
               <InfoField label="Work Experience Summary" value={extractedInfo.experience} fieldName="experience" />
             </div>
-            
+
             <div className="md:col-span-2">
               <div className="bg-gray-50 rounded-lg p-4">
                 <div className="flex justify-between items-start mb-2">
@@ -253,7 +253,7 @@ export function JobApplicationFiller({ resumeText }: JobApplicationFillerProps) 
                 </div>
               </div>
             </div>
-            
+
             <div className="md:col-span-2">
               <InfoField label="Education" value={extractedInfo.education} fieldName="education" />
             </div>
@@ -261,7 +261,7 @@ export function JobApplicationFiller({ resumeText }: JobApplicationFillerProps) 
         ) : (
           <div className="text-center py-8 text-gray-500">
             <FiInfo size={48} className="mx-auto mb-4 opacity-50" />
-            <p>Click "Extract Info" to analyze your resume and extract key information for job applications</p>
+            <p>Click &quot;Extract Info&quot; to analyze your resume and extract key information for job applications</p>
           </div>
         )}
       </div>
@@ -270,13 +270,13 @@ export function JobApplicationFiller({ resumeText }: JobApplicationFillerProps) 
       <div className="bg-blue-50 border border-blue-200 rounded-xl p-6">
         <h3 className="text-lg font-semibold text-blue-900 mb-3">How to Use</h3>
         <ol className="list-decimal list-inside space-y-2 text-blue-800 text-sm">
-          <li>Click "Extract Info" to analyze your resume and extract key information</li>
-          <li>Copy the job application URL from the company's career page</li>
+          <li>Click &quot;Extract Info&quot; to analyze your resume and extract key information</li>
+          <li>Copy the job application URL from the company&apos;s career page</li>
           <li>Open the job application in a new tab</li>
           <li>Use the copy buttons to quickly fill in the application form fields</li>
           <li>Review and customize the information as needed before submitting</li>
         </ol>
-        
+
         <div className="mt-4 p-3 bg-blue-100 rounded-lg">
           <p className="text-xs text-blue-700">
             <strong>Tip:</strong> This tool works best with applications from Greenhouse, Lever, Workday, and other major ATS platforms.

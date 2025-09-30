@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import React from 'react';
 import { motion } from 'framer-motion';
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend, ArcElement } from 'chart.js';
 import { Bar, Doughnut } from 'react-chartjs-2';
@@ -52,7 +52,7 @@ export function SkillsVisualization({ matchingSkills, missingSkills, matchScore 
       },
       tooltip: {
         callbacks: {
-          label: function(context: any) {
+          label: function (context: { label: string; parsed: { y: number } }) {
             const skill = context.label;
             const isMatching = context.parsed.y === 100;
             return `${skill}: ${isMatching ? 'Matching' : 'Missing'}`;
@@ -65,7 +65,7 @@ export function SkillsVisualization({ matchingSkills, missingSkills, matchScore 
         beginAtZero: true,
         max: 100,
         ticks: {
-          callback: function(value: any) {
+          callback: function (value: number | string) {
             return value === 100 ? 'Match' : value === 0 ? 'Missing' : '';
           }
         }
@@ -113,7 +113,7 @@ export function SkillsVisualization({ matchingSkills, missingSkills, matchScore 
       },
       tooltip: {
         callbacks: {
-          label: function(context: any) {
+          label: function (context: { label: string; parsed: number }) {
             const label = context.label;
             const value = context.parsed;
             return `${label}: ${value}%`;
@@ -150,7 +150,7 @@ export function SkillsVisualization({ matchingSkills, missingSkills, matchScore 
             {matchScore}%
           </div>
           <p className="text-gray-600 mb-4">{getScoreMessage(matchScore)}</p>
-          
+
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
             <div className="bg-white rounded-lg p-4 shadow-sm">
               <div className="text-2xl font-bold text-green-600">{matchingSkills.length}</div>

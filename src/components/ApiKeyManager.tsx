@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FiKey, FiEye, FiEyeOff, FiCheck, FiX, FiInfo } from 'react-icons/fi';
+import { FiKey, FiEye, FiEyeOff, FiCheck, FiInfo } from 'react-icons/fi';
 import { apiKeyManager } from '@/utils/apiKeyManager';
 import toast from 'react-hot-toast';
 
@@ -20,12 +20,12 @@ export function ApiKeyManager({ onApiKeySet }: ApiKeyManagerProps) {
   useEffect(() => {
     const hasKey = apiKeyManager.hasApiKey();
     setHasStoredKey(hasKey);
-    
+
     // In production, show modal if no API key is found
     if (apiKeyManager.isProductionMode() && !hasKey) {
       setShowModal(true);
     }
-    
+
     onApiKeySet?.(hasKey);
   }, [onApiKeySet]);
 
@@ -127,11 +127,11 @@ export function ApiKeyManager({ onApiKeySet }: ApiKeyManagerProps) {
               </div>
 
               <p className="text-gray-600 mb-4 text-sm">
-                To use AI features, please provide your OpenAI API key. 
+                To use AI features, please provide your OpenAI API key.
                 You can get one from{' '}
-                <a 
-                  href="https://platform.openai.com/api-keys" 
-                  target="_blank" 
+                <a
+                  href="https://platform.openai.com/api-keys"
+                  target="_blank"
                   rel="noopener noreferrer"
                   className="text-indigo-600 hover:text-indigo-800 underline"
                 >

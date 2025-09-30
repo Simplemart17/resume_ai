@@ -135,7 +135,7 @@ export function ResumeBuilder() {
     }));
   };
 
-  const updateExperience = (id: string, field: keyof Experience, value: any) => {
+  const updateExperience = (id: string, field: keyof Experience, value: string | boolean | string[]) => {
     setResumeData(prev => ({
       ...prev,
       experience: prev.experience.map(exp =>
@@ -167,7 +167,7 @@ export function ResumeBuilder() {
     }));
   };
 
-  const updateEducation = (id: string, field: keyof Education, value: any) => {
+  const updateEducation = (id: string, field: keyof Education, value: string) => {
     setResumeData(prev => ({
       ...prev,
       education: prev.education.map(edu =>
@@ -249,12 +249,11 @@ export function ResumeBuilder() {
               {tabs.map((tab) => (
                 <button
                   key={tab.id}
-                  onClick={() => setActiveTab(tab.id as any)}
-                  className={`${
-                    activeTab === tab.id
-                      ? 'border-blue-500 text-blue-600'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                  } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2 transition-colors`}
+                  onClick={() => setActiveTab(tab.id as 'upload' | 'build' | 'templates' | 'preview')}
+                  className={`${activeTab === tab.id
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                    } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2 transition-colors`}
                 >
                   {tab.icon}
                   {tab.label}
