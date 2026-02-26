@@ -9,45 +9,7 @@ import { NewResumeTemplates } from './NewResumeTemplates';
 import { apiKeyManager } from '@/utils/apiKeyManager';
 import toast, { Toaster } from 'react-hot-toast';
 import Link from 'next/link';
-
-
-
-interface PersonalInfo {
-  fullName: string;
-  email: string;
-  phone: string;
-  location: string;
-  website: string;
-  linkedin: string;
-}
-
-interface Experience {
-  id: string;
-  company: string;
-  position: string;
-  startDate: string;
-  endDate: string;
-  current: boolean;
-  description: string;
-}
-
-interface Education {
-  id: string;
-  institution: string;
-  degree: string;
-  field: string;
-  startDate: string;
-  endDate: string;
-  gpa?: string;
-}
-
-interface ResumeData {
-  personalInfo: PersonalInfo;
-  summary: string;
-  experience: Experience[];
-  education: Education[];
-  skills: string[];
-}
+import type { ResumeData, Experience, Education } from '@/types/resume';
 
 export function ResumeBuilder() {
   const [activeTab, setActiveTab] = useState<'upload' | 'build' | 'templates' | 'preview'>('upload');
@@ -55,7 +17,7 @@ export function ResumeBuilder() {
   const [resumeText, setResumeText] = useState('');
   const [loading, setLoading] = useState(false);
   const [hasApiKey, setHasApiKey] = useState(false);
-  const [selectedTemplate, setSelectedTemplate] = useState('modern');
+  const [selectedTemplate, setSelectedTemplate] = useState('modern-professional');
 
   // Resume builder state
   const [resumeData, setResumeData] = useState<ResumeData>({
@@ -121,7 +83,7 @@ export function ResumeBuilder() {
 
   const addExperience = () => {
     const newExperience: Experience = {
-      id: Date.now().toString(),
+      id: crypto.randomUUID(),
       company: '',
       position: '',
       startDate: '',
@@ -153,7 +115,7 @@ export function ResumeBuilder() {
 
   const addEducation = () => {
     const newEducation: Education = {
-      id: Date.now().toString(),
+      id: crypto.randomUUID(),
       institution: '',
       degree: '',
       field: '',
@@ -212,27 +174,6 @@ export function ResumeBuilder() {
           <p className="text-xl text-gray-600 max-w-3xl mx-auto">
             Create, optimize, and download professional resumes with our AI-powered platform
           </p>
-        </div>
-
-        {/* Navigation */}
-        <div className="flex justify-center mb-8">
-          <div className="bg-white rounded-lg shadow-lg p-2 flex gap-2">
-            <div className="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium">
-              Resume Builder
-            </div>
-            <Link
-              href="/optimize"
-              className="px-4 py-2 text-gray-600 hover:text-blue-600 rounded-lg transition-colors"
-            >
-              AI Optimizer
-            </Link>
-            <Link
-              href="/autofill"
-              className="px-4 py-2 text-gray-600 hover:text-blue-600 rounded-lg transition-colors"
-            >
-              Auto-Fill
-            </Link>
-          </div>
         </div>
 
         {/* API Key Manager */}

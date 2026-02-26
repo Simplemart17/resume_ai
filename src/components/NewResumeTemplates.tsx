@@ -6,43 +6,21 @@ import { FiDownload, FiEye, FiCheck, FiUpload, FiFileText } from 'react-icons/fi
 import { NewPDFGenerator } from '@/utils/newPdfGenerator';
 import { TemplatePreview } from './TemplatePreview';
 import toast from 'react-hot-toast';
+import type { ResumeData } from '@/types/resume';
 
-interface ResumeData {
-  personalInfo: {
-    fullName: string;
-    email: string;
-    phone: string;
-    location: string;
-    website: string;
-    linkedin: string;
-  };
-  summary: string;
-  experience: Array<{
-    id: string;
-    company: string;
-    position: string;
-    startDate: string;
-    endDate: string;
-    current: boolean;
-    description: string;
-  }>;
-  education: Array<{
-    id: string;
-    institution: string;
-    degree: string;
-    field: string;
-    startDate: string;
-    endDate: string;
-    gpa?: string;
-  }>;
-  skills: string[];
-}
+const EMPTY_RESUME_DATA: ResumeData = {
+  personalInfo: { fullName: '', email: '', phone: '', location: '', website: '', linkedin: '' },
+  summary: '',
+  experience: [],
+  education: [],
+  skills: [],
+};
 
 interface NewResumeTemplatesProps {
   resumeText: string;
-  resumeData: ResumeData;
+  resumeData?: ResumeData;
   onTemplateSelect?: (templateId: string) => void;
-  selectedTemplate: string;
+  selectedTemplate?: string;
 }
 
 const templates = [
@@ -82,9 +60,9 @@ const templates = [
 
 export function NewResumeTemplates({
   resumeText,
-  resumeData,
+  resumeData = EMPTY_RESUME_DATA,
   onTemplateSelect,
-  selectedTemplate
+  selectedTemplate = 'modern-professional'
 }: NewResumeTemplatesProps) {
   const [isGenerating, setIsGenerating] = useState(false);
   const [previewTemplate, setPreviewTemplate] = useState<string | null>(null);
@@ -187,6 +165,9 @@ export function NewResumeTemplates({
                 Generate PDF
               </button>
             </div>
+            <p className="text-sm text-amber-700 mt-3">
+              Custom template rendering is coming soon. Your resume will be generated using the Modern Professional layout.
+            </p>
           </div>
         )}
       </div>

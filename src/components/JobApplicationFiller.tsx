@@ -22,7 +22,6 @@ interface ExtractedInfo {
 export function JobApplicationFiller({ resumeText }: JobApplicationFillerProps) {
   const [jobUrl, setJobUrl] = useState('');
   const [extractedInfo, setExtractedInfo] = useState<ExtractedInfo | null>(null);
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [copiedField, setCopiedField] = useState<string | null>(null);
 
   const extractResumeInfo = (text: string): ExtractedInfo => {
@@ -80,15 +79,9 @@ export function JobApplicationFiller({ resumeText }: JobApplicationFillerProps) 
       return;
     }
 
-    setIsAnalyzing(true);
-
-    // Simulate analysis delay
-    setTimeout(() => {
-      const info = extractResumeInfo(resumeText);
-      setExtractedInfo(info);
-      setIsAnalyzing(false);
-      toast.success('Resume information extracted successfully!');
-    }, 1500);
+    const info = extractResumeInfo(resumeText);
+    setExtractedInfo(info);
+    toast.success('Resume information extracted successfully!');
   };
 
   const copyToClipboard = async (text: string, fieldName: string) => {
@@ -189,20 +182,11 @@ export function JobApplicationFiller({ resumeText }: JobApplicationFillerProps) 
           <h3 className="text-lg font-semibold text-gray-900">Resume Information</h3>
           <button
             onClick={handleAnalyzeResume}
-            disabled={isAnalyzing || !resumeText.trim()}
+            disabled={!resumeText.trim()}
             className="flex items-center px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
-            {isAnalyzing ? (
-              <>
-                <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent mr-2"></div>
-                Analyzing...
-              </>
-            ) : (
-              <>
-                <FiLink className="mr-2" size={16} />
-                Extract Info
-              </>
-            )}
+            <FiLink className="mr-2" size={16} />
+            Extract Info
           </button>
         </div>
 

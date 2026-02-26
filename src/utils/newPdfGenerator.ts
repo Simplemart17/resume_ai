@@ -1,33 +1,5 @@
 import jsPDF from "jspdf";
-
-interface ResumeData {
-  personalInfo: {
-    fullName: string;
-    email: string;
-    phone: string;
-    location: string;
-    website?: string;
-    linkedin?: string;
-  };
-  summary: string;
-  experience: Array<{
-    company: string;
-    position: string;
-    startDate: string;
-    endDate: string;
-    current: boolean;
-    description: string;
-  }>;
-  education: Array<{
-    institution: string;
-    degree: string;
-    field: string;
-    startDate: string;
-    endDate: string;
-    gpa?: string;
-  }>;
-  skills: string[];
-}
+import type { ResumeData } from "@/types/resume";
 
 export class NewPDFGenerator {
   private static formatDate(dateStr: string): string {
