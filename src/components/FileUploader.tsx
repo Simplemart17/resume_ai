@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useState } from 'react';
+import toast from 'react-hot-toast';
 
 interface FileUploaderProps {
   onFileSelect: (file: File | null) => void;
@@ -32,7 +33,7 @@ export function FileUploader({ onFileSelect, selectedFile, accept }: FileUploade
       if (accept.split(',').some(type => file.name.toLowerCase().endsWith(type.replace('*', '').trim()))) {
         onFileSelect(file);
       } else {
-        alert('Please upload a valid file type');
+        toast.error('Unsupported file type. Please upload a PDF, DOC, DOCX, or TXT file.');
       }
     }
   }, [accept, onFileSelect]);
@@ -44,7 +45,7 @@ export function FileUploader({ onFileSelect, selectedFile, accept }: FileUploade
 
   return (
     <div
-      className={`border-2 border-dashed rounded-lg mt-1 h-[314px] flex items-center justify-center ${
+      className={`border-2 border-dashed rounded-lg mt-1 min-h-[200px] py-8 flex items-center justify-center ${
         !isDragging ? 'border-gray-300 hover:border-gray-400' : ''
       }`}
       style={isDragging ? { borderColor: '#6366f1', backgroundColor: '#eef2ff' } : {}}
@@ -88,4 +89,4 @@ export function FileUploader({ onFileSelect, selectedFile, accept }: FileUploade
       </label>
     </div>
   );
-} 
+}
