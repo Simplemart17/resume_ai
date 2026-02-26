@@ -220,9 +220,12 @@ export function LandingPage() {
                   <p className="text-gray-600 text-sm mb-4">
                     {template.description}
                   </p>
-                  <button className="w-full bg-gray-100 hover:bg-gray-200 text-gray-800 py-2 px-4 rounded-lg transition-colors duration-200">
+                  <Link
+                    href="/builder"
+                    className="w-full bg-gray-100 hover:bg-gray-200 text-gray-800 py-2 px-4 rounded-lg transition-colors duration-200 block text-center"
+                  >
                     Use Template
-                  </button>
+                  </Link>
                 </div>
               </motion.div>
             ))}
@@ -330,9 +333,12 @@ export function LandingPage() {
                   </li>
                 </ul>
 
-                <button className="w-full bg-white text-blue-600 py-3 px-6 rounded-lg font-semibold hover:bg-gray-100 transition-colors duration-200">
+                <Link
+                  href="/builder"
+                  className="w-full bg-white text-blue-600 py-3 px-6 rounded-lg font-semibold hover:bg-gray-100 transition-colors duration-200 block text-center"
+                >
                   Start Pro Trial
-                </button>
+                </Link>
               </div>
             </motion.div>
 
@@ -372,9 +378,12 @@ export function LandingPage() {
                   </li>
                 </ul>
 
-                <button className="w-full bg-gray-100 hover:bg-gray-200 text-gray-800 py-3 px-6 rounded-lg font-semibold transition-colors duration-200">
+                <Link
+                  href="/builder"
+                  className="w-full bg-gray-100 hover:bg-gray-200 text-gray-800 py-3 px-6 rounded-lg font-semibold transition-colors duration-200 block text-center"
+                >
                   Contact Sales
-                </button>
+                </Link>
               </div>
             </motion.div>
           </div>
@@ -403,7 +412,10 @@ export function LandingPage() {
               >
                 Start Building Now <FiArrowRight className="w-5 h-5" />
               </Link>
-              <button className="text-white border border-white px-8 py-4 rounded-lg text-lg font-semibold hover:bg-white hover:text-blue-600 transition-all duration-200 flex items-center gap-2">
+              <button
+                onClick={() => setShowTemplates(true)}
+                className="text-white border border-white px-8 py-4 rounded-lg text-lg font-semibold hover:bg-white hover:text-blue-600 transition-all duration-200 flex items-center gap-2"
+              >
                 <FiFileText className="w-5 h-5" />
                 View Examples
               </button>
