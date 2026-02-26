@@ -6,7 +6,6 @@ import { FiUpload, FiCopy, FiCheck, FiUser } from 'react-icons/fi';
 import { FileUploader } from './FileUploader';
 import { JobApplicationFiller } from './JobApplicationFiller';
 import toast, { Toaster } from 'react-hot-toast';
-import Link from 'next/link';
 
 interface ExtractedData {
   personalInfo: {
@@ -129,27 +128,6 @@ export function AutoFillApp() {
               Extract information from your resume to quickly fill job application forms
             </p>
           </motion.div>
-        </div>
-
-        {/* Navigation */}
-        <div className="flex justify-center mb-8">
-          <div className="bg-white rounded-lg shadow-lg p-2 flex gap-2">
-            <Link
-              href="/builder"
-              className="px-4 py-2 text-gray-600 hover:text-blue-600 rounded-lg transition-colors"
-            >
-              Resume Builder
-            </Link>
-            <Link
-              href="/optimize"
-              className="px-4 py-2 text-gray-600 hover:text-blue-600 rounded-lg transition-colors"
-            >
-              AI Optimizer
-            </Link>
-            <div className="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium">
-              Auto-Fill
-            </div>
-          </div>
         </div>
 
         {/* Upload Section */}
