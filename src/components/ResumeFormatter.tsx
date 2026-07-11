@@ -7,6 +7,7 @@ import { NewResumeTemplates } from './NewResumeTemplates';
 import { JobApplicationFiller } from './JobApplicationFiller';
 import { motion } from 'framer-motion';
 import { apiKeyManager } from '@/utils/apiKeyManager';
+import { useUserTier } from '@/lib/useUserTier';
 import toast from 'react-hot-toast';
 import {
   MAX_RESUME_CHARS,
@@ -34,6 +35,7 @@ export function ResumeFormatter() {
   const [generatingCoverLetter, setGeneratingCoverLetter] = useState(false);
   const [coverLetterError, setCoverLetterError] = useState<string | null>(null);
   const [hasApiKey, setHasApiKey] = useState(false);
+  const { accountsEnabled } = useUserTier();
 
   useEffect(() => {
     setHasApiKey(apiKeyManager.hasApiKey());
@@ -67,8 +69,11 @@ export function ResumeFormatter() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Only check for API key in production
-    if (process.env.NODE_ENV === 'production' && !hasApiKey) {
+    // Pre-block only in production WITHOUT accounts, where a browser key is
+    // genuinely the only way a request can succeed. With accounts enabled,
+    // paid tiers may use the server key with no browser key at all — send
+    // the request and let the server's 401/403/429 messages guide the user.
+    if (process.env.NODE_ENV === 'production' && !hasApiKey && !accountsEnabled) {
       toast.error('Please provide an OpenAI API key to use AI features');
       return;
     }

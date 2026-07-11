@@ -31,8 +31,10 @@ const PILL_ON_ACTIVE =
   'ml-1.5 inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-white/20 text-white';
 
 /**
- * Sign in / Account link for the nav. Renders nothing while auth state is
- * loading or when accounts are disabled (no Supabase env vars).
+ * Sign in / Account link for the nav. Hidden only when accounts are disabled
+ * (no Clerk env vars) or until the Clerk session resolves; the link itself
+ * doesn't wait on the slower /api/me tier fetch — only the paid-tier pill
+ * does, so a slow or failing tier lookup can't hide the Account link.
  */
 function AuthNavItem({
   auth,
@@ -45,12 +47,14 @@ function AuthNavItem({
   accountClassName: string;
   pillClassName: string;
 }) {
-  if (!auth.accountsEnabled || auth.loading) return null;
+  if (!auth.accountsEnabled || !auth.userLoaded) return null;
 
   return auth.user ? (
     <Link href="/account" className={accountClassName}>
       Account
-      {isPaidTier(auth.tier) && <span className={pillClassName}>{TIERS[auth.tier].name}</span>}
+      {!auth.loading && isPaidTier(auth.tier) && (
+        <span className={pillClassName}>{TIERS[auth.tier].name}</span>
+      )}
     </Link>
   ) : (
     <Link href="/login" className={signInClassName}>

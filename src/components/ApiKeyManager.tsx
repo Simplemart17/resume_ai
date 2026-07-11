@@ -2,8 +2,11 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import Link from 'next/link';
 import { FiKey, FiEye, FiEyeOff, FiCheck, FiInfo } from 'react-icons/fi';
 import { apiKeyManager } from '@/utils/apiKeyManager';
+import { useUserTier } from '@/lib/useUserTier';
+import { isPaidTier, TIERS } from '@/lib/tiers';
 import toast from 'react-hot-toast';
 
 interface ApiKeyManagerProps {
@@ -21,19 +24,24 @@ export function ApiKeyManager({ onApiKeySet }: ApiKeyManagerProps) {
   const [hasCustomKey, setHasCustomKey] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const keyInputRef = useRef<HTMLInputElement>(null);
+  const { tier, accountsEnabled, loading: tierLoading } = useUserTier();
+
+  // A key is only truly REQUIRED when accounts are disabled: with accounts
+  // enabled, paid tiers use the server key with no browser key at all, so
+  // forcing the modal (with no Cancel) would wall off a feature they paid for.
+  const keyRequired = apiKeyManager.isProductionMode() && !accountsEnabled;
 
   useEffect(() => {
     const hasKey = apiKeyManager.hasApiKey();
     setHasStoredKey(hasKey);
     setHasCustomKey(!!apiKeyManager.getApiKey());
 
-    // In production, show modal if no API key is found
-    if (apiKeyManager.isProductionMode() && !hasKey) {
+    if (keyRequired && !hasKey) {
       setShowModal(true);
     }
 
     onApiKeySet?.(hasKey);
-  }, [onApiKeySet]);
+  }, [onApiKeySet, keyRequired]);
 
   // Modal a11y: focus the key input on open and close on Escape
   useEffect(() => {
@@ -153,6 +161,36 @@ export function ApiKeyManager({ onApiKeySet }: ApiKeyManagerProps) {
         </div>
       )}
 
+      {/* Accounts mode, no key stored: informative, never blocking. */}
+      {!hasStoredKey && !showModal && accountsEnabled && !tierLoading && (
+        <div className="flex items-center justify-between gap-4 p-4 bg-blue-50 border border-blue-200 rounded-lg flex-wrap">
+          <div className="flex items-center">
+            <FiInfo className="text-blue-500 mr-2 shrink-0" />
+            <span className="text-sm text-blue-700">
+              {isPaidTier(tier)
+                ? `Your ${TIERS[tier].name} plan includes AI on our key — no API key needed.`
+                : 'Add your own OpenAI API key, or get Pro for AI with no key needed.'}
+            </span>
+          </div>
+          <div className="flex items-center space-x-3">
+            {!isPaidTier(tier) && (
+              <Link
+                href="/#pricing"
+                className="text-sm text-blue-600 hover:text-blue-800 underline"
+              >
+                See plans
+              </Link>
+            )}
+            <button
+              onClick={() => setShowModal(true)}
+              className="text-sm text-blue-600 hover:text-blue-800 underline"
+            >
+              {isPaidTier(tier) ? 'Use my own key' : 'Set API key'}
+            </button>
+          </div>
+        </div>
+      )}
+
       <AnimatePresence>
         {showModal && (
           <motion.div
@@ -231,7 +269,7 @@ export function ApiKeyManager({ onApiKeySet }: ApiKeyManagerProps) {
                   >
                     Save Key
                   </button>
-                  {!apiKeyManager.isProductionMode() && (
+                  {!keyRequired && (
                     <button
                       onClick={() => setShowModal(false)}
                       className="flex-1 bg-gray-300 text-gray-700 py-2 px-4 rounded-lg hover:bg-gray-400 transition-colors font-medium"

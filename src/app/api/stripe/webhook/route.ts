@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
+import { getStripe } from '@/lib/stripe';
 import { getSupabaseDb } from '@/lib/supabase/server';
-import { highestTier, isTier, Tier } from '@/lib/tiers';
+import { isTier } from '@/lib/tiers';
 
 /**
  * POST /api/stripe/webhook — Stripe event receiver.
@@ -12,9 +13,9 @@ import { highestTier, isTier, Tier } from '@/lib/tiers';
  * Stripe retries.
  */
 export async function POST(request: NextRequest) {
-  const stripeKey = process.env.STRIPE_SECRET_KEY;
+  const stripe = getStripe();
   const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
-  if (!stripeKey || !webhookSecret) {
+  if (!stripe || !webhookSecret) {
     return NextResponse.json(
       { error: 'Payments are not configured on this server' },
       { status: 503 }
@@ -29,7 +30,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Missing stripe-signature header' }, { status: 400 });
   }
 
-  const stripe = new Stripe(stripeKey);
   let event: Stripe.Event;
   try {
     event = stripe.webhooks.constructEvent(rawBody, signature, webhookSecret);
@@ -69,8 +69,8 @@ export async function POST(request: NextRequest) {
 
   const db = getSupabaseDb();
   if (!db) {
-    // Transient/operator error: once SUPABASE_SERVICE_ROLE_KEY is set,
-    // Stripe's retry will fulfill this purchase.
+    // Transient/operator error: once SUPABASE_URL and SUPABASE_SECRET_KEY
+    // are set, Stripe's retry will fulfill this purchase.
     console.error(`Stripe webhook: Supabase DB client unavailable; cannot fulfill ${session.id}`);
     return NextResponse.json({ error: 'Fulfillment store not configured' }, { status: 500 });
   }
@@ -88,31 +88,17 @@ export async function POST(request: NextRequest) {
   }
   // 23505 (unique violation on stripe_session_id) means a redelivered event —
   // the purchase is already recorded. Still run the tier update below: it is
-  // idempotent (highestTier never downgrades) and heals the case where a
+  // idempotent (upgrade_tier never downgrades) and heals the case where a
   // previous delivery inserted the purchase but crashed before the upgrade.
 
-  const { data: profile, error: profileError } = await db
-    .from('profiles')
-    .select('tier')
-    .eq('user_id', userId)
-    .maybeSingle();
-  if (profileError) {
-    console.error(`Stripe webhook: failed to read profile for ${userId}:`, profileError.message);
-    return NextResponse.json({ error: 'Failed to read profile' }, { status: 500 });
-  }
-
-  const currentTier: Tier = isTier(profile?.tier) ? profile.tier : 'free';
-  const newTier = highestTier(currentTier, purchasedTier);
-
-  // Upsert covers the edge case of a user created before the profile trigger
-  // existed. Never downgrade: an Enterprise owner buying Pro keeps Enterprise.
-  const { error: upsertError } = await db.from('profiles').upsert({
-    user_id: userId,
-    tier: newTier,
-    updated_at: new Date().toISOString(),
+  // Atomic, monotonic upgrade in SQL: a JS read-modify-write here could
+  // interleave with a concurrent delivery and overwrite a higher tier.
+  const { error: upgradeError } = await db.rpc('upgrade_tier', {
+    p_user_id: userId,
+    p_tier: purchasedTier,
   });
-  if (upsertError) {
-    console.error(`Stripe webhook: failed to upgrade tier for ${userId}:`, upsertError.message);
+  if (upgradeError) {
+    console.error(`Stripe webhook: failed to upgrade tier for ${userId}:`, upgradeError.message);
     return NextResponse.json({ error: 'Failed to update profile tier' }, { status: 500 });
   }
 

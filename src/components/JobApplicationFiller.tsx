@@ -282,7 +282,7 @@ export function JobApplicationFiller({ resumeText, structuredData }: JobApplicat
 
         <div className="mt-4 p-3 bg-blue-100 rounded-lg">
           <p className="text-xs text-blue-700">
-            <strong>Tip:</strong> Your details never leave this page — you copy and paste each field yourself, so this works with any application form.
+            <strong>Tip:</strong> Nothing is sent to job sites and nothing is submitted for you — you copy and paste each field yourself, so this works with any application form.
           </p>
         </div>
       </div>
