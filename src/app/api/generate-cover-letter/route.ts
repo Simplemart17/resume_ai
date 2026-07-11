@@ -1,32 +1,36 @@
 import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
 import { checkRateLimit } from '@/utils/rateLimit';
-
-const MAX_RESUME_CHARS = 20000;
-const MAX_JOB_DESCRIPTION_CHARS = 10000;
-const MAX_TITLE_COMPANY_CHARS = 200;
+import {
+  getOpenAIKey,
+  openAIErrorResponse,
+  parseJsonBody,
+  rateLimitResponse,
+} from '@/utils/apiHelpers';
+import {
+  MAX_JOB_DESCRIPTION_CHARS,
+  MAX_RESUME_CHARS,
+  MAX_TITLE_COMPANY_CHARS,
+} from '@/config/apiLimits';
 
 export async function POST(request: NextRequest) {
   try {
     // Rate limit before doing any work — this route can spend the server's OpenAI key
     const rateLimit = checkRateLimit(request, { limit: 10, windowMs: 60000, bucket: 'generate-cover-letter' });
     if (!rateLimit.allowed) {
-      return NextResponse.json(
-        { error: 'Rate limit exceeded. Please try again later.' },
-        { status: 429, headers: { 'Retry-After': String(rateLimit.retryAfterSeconds) } }
-      );
+      return rateLimitResponse(rateLimit);
     }
 
-    let body: { jobTitle?: unknown; company?: unknown; jobDescription?: unknown; resume?: unknown };
-    try {
-      body = await request.json();
-    } catch {
-      return NextResponse.json(
-        { error: 'Invalid JSON in request body' },
-        { status: 400 }
-      );
+    const parsedBody = await parseJsonBody<{
+      jobTitle?: unknown;
+      company?: unknown;
+      jobDescription?: unknown;
+      resume?: unknown;
+    }>(request);
+    if (parsedBody.errorResponse) {
+      return parsedBody.errorResponse;
     }
-    const { jobTitle, company, jobDescription, resume } = body;
+    const { jobTitle, company, jobDescription, resume } = parsedBody.body;
 
     if (!jobTitle || typeof jobTitle !== 'string' ||
         !company || typeof company !== 'string' ||
@@ -66,8 +70,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Get API key from Authorization header or environment
-    const authHeader = request.headers.get('authorization');
-    const apiKey = authHeader?.match(/^Bearer\s+(.+)$/i)?.[1] || process.env.OPENAI_API_KEY;
+    const apiKey = getOpenAIKey(request);
 
     if (!apiKey) {
       return NextResponse.json(
@@ -137,15 +140,9 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('Error in cover letter generation:', error);
 
-    if (error instanceof OpenAI.APIError) {
-      const status = error.status ?? 500;
-      let message = `OpenAI API error: ${error.message}`;
-      if (status === 401) {
-        message = 'Invalid or missing OpenAI API key';
-      } else if (status === 429) {
-        message = 'OpenAI rate limit or quota exceeded. Please try again later.';
-      }
-      return NextResponse.json({ error: message }, { status });
+    const openAIError = openAIErrorResponse(error);
+    if (openAIError) {
+      return openAIError;
     }
 
     return NextResponse.json(

@@ -3,6 +3,7 @@ import axios from 'axios';
 import jobCache from '@/utils/cache';
 import { JOB_API } from '@/config/jobApis';
 import { checkRateLimit } from '@/utils/rateLimit';
+import { parseJsonBody, rateLimitResponse } from '@/utils/apiHelpers';
 
 // Define the interface for job postings
 interface JobPosting {
@@ -79,16 +80,11 @@ async function fetchJobs(keywords: string, location: string): Promise<JobPosting
 
 export async function POST(request: NextRequest) {
   try {
-    let body: { keywords?: unknown; location?: unknown };
-    try {
-      body = await request.json();
-    } catch {
-      return NextResponse.json(
-        { error: 'Invalid JSON in request body' },
-        { status: 400 }
-      );
+    const parsedBody = await parseJsonBody<{ keywords?: unknown; location?: unknown }>(request);
+    if (parsedBody.errorResponse) {
+      return parsedBody.errorResponse;
     }
-    const { keywords, location } = body;
+    const { keywords, location } = parsedBody.body;
 
     if (!keywords || typeof keywords !== 'string') {
       return NextResponse.json(
@@ -100,10 +96,7 @@ export async function POST(request: NextRequest) {
     // Check rate limiting
     const rateLimit = checkRateLimit(request, { limit: 5, windowMs: 60000, bucket: 'search-jobs' });
     if (!rateLimit.allowed) {
-      return NextResponse.json(
-        { error: 'Rate limit exceeded. Please try again later.' },
-        { status: 429, headers: { 'Retry-After': String(rateLimit.retryAfterSeconds) } }
-      );
+      return rateLimitResponse(rateLimit);
     }
 
     // Fail fast when the server is missing Adzuna credentials
@@ -133,11 +126,14 @@ export async function POST(request: NextRequest) {
       console.log(`Searching for ${keywords} jobs...`);
       const jobs = await fetchJobs(keywords, searchLocation);
 
-      // Zero results is a valid outcome — return 200 with an empty list
-      // Cache the results
-      jobCache.set(cacheKey, jobs);
-      
-      return NextResponse.json({ 
+      // Zero results is a valid outcome — return 200 with an empty list, but
+      // don't cache it: a transient empty upstream response would otherwise
+      // negative-cache this search for the full 1-hour TTL.
+      if (jobs.length > 0) {
+        jobCache.set(cacheKey, jobs);
+      }
+
+      return NextResponse.json({
         jobs,
         source: 'Adzuna'
       });

@@ -1,31 +1,27 @@
 import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
 import { checkRateLimit } from '@/utils/rateLimit';
-
-const MAX_RESUME_CHARS = 20000;
-const MAX_JOB_DESCRIPTION_CHARS = 10000;
+import {
+  getOpenAIKey,
+  openAIErrorResponse,
+  parseJsonBody,
+  rateLimitResponse,
+} from '@/utils/apiHelpers';
+import { MAX_JOB_DESCRIPTION_CHARS, MAX_RESUME_CHARS } from '@/config/apiLimits';
 
 export async function POST(request: NextRequest) {
   try {
     // Rate limit before doing any work — this route can spend the server's OpenAI key
     const rateLimit = checkRateLimit(request, { limit: 10, windowMs: 60000, bucket: 'format-resume' });
     if (!rateLimit.allowed) {
-      return NextResponse.json(
-        { error: 'Rate limit exceeded. Please try again later.' },
-        { status: 429, headers: { 'Retry-After': String(rateLimit.retryAfterSeconds) } }
-      );
+      return rateLimitResponse(rateLimit);
     }
 
-    let body: { resume?: unknown; jobDescription?: unknown };
-    try {
-      body = await request.json();
-    } catch {
-      return NextResponse.json(
-        { error: 'Invalid JSON in request body' },
-        { status: 400 }
-      );
+    const parsedBody = await parseJsonBody<{ resume?: unknown; jobDescription?: unknown }>(request);
+    if (parsedBody.errorResponse) {
+      return parsedBody.errorResponse;
     }
-    const { resume, jobDescription } = body;
+    const { resume, jobDescription } = parsedBody.body;
 
     if (!resume || typeof resume !== 'string' || !jobDescription || typeof jobDescription !== 'string') {
       return NextResponse.json(
@@ -49,8 +45,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Get API key from Authorization header or environment
-    const authHeader = request.headers.get('authorization');
-    const apiKey = authHeader?.match(/^Bearer\s+(.+)$/i)?.[1] || process.env.OPENAI_API_KEY;
+    const apiKey = getOpenAIKey(request);
     if (!apiKey) {
       return NextResponse.json(
         { error: 'OpenAI API key is required' },
@@ -186,15 +181,9 @@ Your task is to analyze and optimize resumes to maximize their match with specif
   } catch (error) {
     console.error('Error in resume formatting:', error);
 
-    if (error instanceof OpenAI.APIError) {
-      const status = error.status ?? 500;
-      let message = `OpenAI API error: ${error.message}`;
-      if (status === 401) {
-        message = 'Invalid or missing OpenAI API key';
-      } else if (status === 429) {
-        message = 'OpenAI rate limit or quota exceeded. Please try again later.';
-      }
-      return NextResponse.json({ error: message }, { status });
+    const openAIError = openAIErrorResponse(error);
+    if (openAIError) {
+      return openAIError;
     }
 
     return NextResponse.json(
