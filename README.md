@@ -1,211 +1,89 @@
 # ResumeAI Pro 🚀
 
-A modern, AI-powered resume builder that helps you create professional resumes with beautiful templates, AI optimization, and instant PDF downloads. Complete redesign with modern UI and enhanced functionality.
+An AI-powered resume builder: create a resume with structured forms or by uploading an existing one, optimize it against a job description with match scoring, generate tailored cover letters, and download polished PDFs. One-time-purchase Pro/Enterprise tiers unlock premium templates and AI usage on our key.
 
-## ✨ New Features
+## Features
 
-### 🎨 Modern Landing Page
-- Beautiful, responsive design with gradient backgrounds
-- Feature showcase with animations
-- Professional template gallery
-- Pricing tiers and call-to-action sections
+- **Resume builder** (`/builder`) — Upload / Build / Templates / Preview tabs: parse an existing PDF/DOCX/TXT resume into editable structured forms, or build from scratch.
+- **AI optimizer** (`/optimize`) — ATS optimization against a pasted job description: rewritten resume, match score, changes made, matching and missing skills (skill-gap analysis), and a tailored cover letter grounded in your actual resume.
+- **Auto-fill assistant** (`/autofill`) — extracts your details (contact info, summary, skills) from a resume so you can copy them into job applications with one click. (It does not submit or fill external sites for you.)
+- **4 PDF templates** — Modern Professional, Classic Traditional, Creative Designer, Executive Premium; multi-page-safe generation via jsPDF.
 
-### 🏗️ Interactive Resume Builder
-- Step-by-step resume creation interface
-- Real-time form validation and preview
-- Drag-and-drop file upload
-- Structured data input for all resume sections
+## Pricing
 
-### 📄 Professional Templates (NEW)
-- **Modern Professional**: Clean, contemporary design with blue accents
-- **Classic Traditional**: Traditional black and white format
-- **Creative Designer**: Bold, colorful design with pink accents
-- **Executive Premium**: Sophisticated layout for senior positions
-- Custom template upload support
+One-time payments — no subscriptions. Every listed feature is enforced in code.
 
-### 🤖 AI-Powered Features
-- Resume parsing and data extraction
-- Smart content suggestions (coming soon)
-- Job description matching (coming soon)
-- Skill gap analysis
+| | Free | Pro — $2 once | Enterprise — $5 once |
+|---|---|---|---|
+| Templates | Modern + Classic | All 4 | All 4 |
+| PDF downloads | Unlimited | Unlimited | Unlimited |
+| AI with your own OpenAI key | ✅ Unlimited | ✅ Unlimited | ✅ Unlimited |
+| AI on our key (no key needed) | — | 20 ops/month | 100 ops/month |
+| Priority email support | — | — | ✅ |
 
-### 📱 Enhanced User Experience
-- Mobile-first responsive design
-- Smooth animations and transitions
-- Intuitive navigation with tabs
-- Real-time preview and editing
+Without Supabase/Stripe configured (see below), the app runs in a free "no accounts" mode: all templates unlocked, AI via the server key or BYOK.
 
-## 🛠️ Technology Stack
+## Tech Stack
 
-- **Frontend**: Next.js 15, React 19, TypeScript
-- **Styling**: Tailwind CSS 4, Framer Motion
-- **Charts**: Chart.js, React Chart.js 2
-- **PDF Generation**: jsPDF, html2canvas
-- **AI**: OpenAI GPT API
-- **Icons**: React Icons
-- **Notifications**: React Hot Toast
+- **Frontend**: Next.js 15 (App Router), React 19, TypeScript, Tailwind CSS 4, Framer Motion
+- **AI**: OpenAI (`gpt-4o` for optimization, `gpt-4o-mini` for cover letters)
+- **PDF**: jsPDF · **Charts**: Chart.js · **Parsing**: pdf-parse, mammoth
+- **Auth**: Clerk · **Database**: Supabase Postgres (shared project, dedicated `resume` schema, server-side only) · **Payments**: Stripe Checkout (one-time)
 
-## 🚀 Getting Started
+## Getting Started
 
-### Prerequisites
-- Node.js 18+
-- npm or yarn
-- OpenAI API key (get one from [OpenAI Platform](https://platform.openai.com/api-keys))
+### 1. Install and configure
 
-### Installation
-
-1. Clone the repository:
 ```bash
-git clone <repository-url>
-cd resume_ai
-```
-
-2. Install dependencies:
-```bash
+git clone <repository-url> && cd resume_ai
 npm install
-# or
-yarn install
-```
-
-3. Set up environment variables:
-```bash
 cp .env.example .env.local
 ```
 
-Add your OpenAI API key to `.env.local`:
-```
-OPENAI_API_KEY=your_openai_api_key_here
-```
+Fill in `.env.local` (see the comments in [.env.example](.env.example)):
 
-4. Run the development server:
+- `OPENAI_API_KEY` — required for AI features in dev.
+- Supabase + Stripe vars — optional; only needed for accounts and payments.
+
+### 2. (Optional) Accounts — Clerk + Supabase
+
+**Clerk (authentication):**
+1. Create an application at [dashboard.clerk.com](https://dashboard.clerk.com); copy the publishable and secret keys into `.env.local`, and set `NEXT_PUBLIC_CLERK_SIGN_IN_URL=/login`.
+
+**Supabase (database only — works on a shared project):**
+1. Copy the project URL and the new-style **secret key** (`sb_secret_...`) into `.env.local`. The legacy anon/service-role keys are not used; the publishable key (`sb_publishable_...`) is documented in `.env.example` but not currently consumed (there is no browser database access).
+2. Apply the migration: paste [supabase/migrations/0001_monetization.sql](supabase/migrations/0001_monetization.sql) into the SQL editor (or `supabase db push`). Everything lives in a dedicated **`resume` schema** so it won't collide with other apps sharing the project.
+3. Dashboard → Settings → API → **Exposed schemas**: add `resume` (PostgREST only serves listed schemas).
+
+### 3. (Optional) Payments — Stripe
+
+1. Put your secret key in `STRIPE_SECRET_KEY`. Prices ($2/$5) are defined in code (`src/lib/tiers.ts`) — no dashboard products needed.
+2. Create a webhook endpoint pointing at `<your-domain>/api/stripe/webhook`, subscribed to `checkout.session.completed` and `checkout.session.async_payment_succeeded`; put its signing secret in `STRIPE_WEBHOOK_SECRET`.
+3. Local testing: `stripe listen --forward-to localhost:3000/api/stripe/webhook`.
+
+### 4. Run
+
 ```bash
-npm run dev
-# or
-yarn dev
+npm run dev    # http://localhost:3000
 ```
 
-5. Open [http://localhost:3000](http://localhost:3000) in your browser.
+## API Key Handling (honest version)
 
-## 📖 Usage Guide
+Your OpenAI key, if you provide one in the app, is stored only in your browser (sessionStorage by default, localStorage if you opt in) and sent over HTTPS to **this app's API routes**, which forward it to OpenAI. It is never stored server-side. Paid tiers don't need a key — their AI calls use the server's key under monthly fair-use quotas.
 
-### 1. Landing Page Experience
-- Visit the modern landing page with feature overview
-- Browse template gallery and pricing information
-- Click "Get Started" to access the resume builder at `/builder`
+## Deployment
 
-### 2. Resume Builder Interface
-- **Upload Tab**: Upload existing resume (PDF, DOCX, TXT) for automatic parsing
-- **Build Tab**: Create resume from scratch with structured forms
-- **Templates Tab**: Choose from 4 professional templates and generate PDFs
-- **AI Optimize Tab**: AI-powered optimization (coming soon)
-- **Auto-Fill Tab**: Extract data for job applications
-- **Analytics Tab**: View resume performance metrics
+Deploy to [Vercel](https://vercel.com) (recommended — the per-IP rate limiter trusts Vercel's proxy headers): set all env vars in the dashboard, and point your Stripe webhook at the production URL. Other Next.js hosts work too, but must sit behind a trusted proxy that sets `x-real-ip`, and the in-memory rate limiter/cache should be replaced with Redis for multi-instance deployments.
 
-### 3. Building Your Resume
-- Fill in personal information (name, email, phone, location)
-- Write a compelling professional summary
-- Add work experience with detailed descriptions
-- Include education background and achievements
-- Add relevant skills with easy tag management
+## Contributing
 
-### 4. Template Selection & PDF Generation
-- Choose from 4 professionally designed templates:
-  - **Modern Professional**: Blue accents, contemporary design
-  - **Classic Traditional**: Black & white, conservative format
-  - **Creative Designer**: Pink accents, bold design
-  - **Executive Premium**: Sophisticated layout for senior roles
-- Upload custom templates (PDF/image format)
-- Generate high-quality PDFs with one click
+1. Fork, branch (`git checkout -b feature/thing`), commit, open a PR.
+2. `npm run lint` and `npm run build` must pass. No test framework is configured yet.
+3. House rule: never advertise a feature (README, landing page, tier lists) that isn't enforced in code — tiers live in `src/lib/tiers.ts`.
 
-### 5. Advanced Features
-- Resume parsing with automatic data extraction
-- Job application auto-fill functionality
-- Analytics dashboard for optimization insights
-- Mobile-responsive design for editing anywhere
+## License
 
-## 🎨 Templates
-
-### Modern Professional
-- Clean, contemporary design with blue accent colors
-- Modern typography and professional layout
-- Perfect for tech, business, and corporate roles
-- ATS-friendly format with clear section headers
-
-### Classic Traditional
-- Traditional black and white format
-- Conservative styling with elegant typography
-- Ideal for traditional industries (law, finance, government)
-- Two-column layout for education and skills
-
-### Creative Designer
-- Bold, colorful design with pink accent colors
-- Creative layout with visual appeal
-- Great for design, marketing, and creative professionals
-- Eye-catching header with modern styling
-
-### Executive Premium
-- Sophisticated layout for senior-level positions
-- Professional styling with elegant typography
-- Perfect for C-level executives and leadership roles
-- Clean, authoritative design that commands attention
-
-## 🔧 Configuration
-
-### API Key Management
-The app supports flexible API key management:
-
-- **Development**: Uses `OPENAI_API_KEY` from environment variables
-- **Production**: Prompts user to enter their own API key
-- **Storage**: Keys are stored locally in browser (localStorage or sessionStorage)
-- **Security**: Keys never sent to your servers
-
-### Supported File Formats
-- **PDF**: Full text extraction
-- **DOCX**: Microsoft Word documents
-- **TXT**: Plain text files
-
-### Supported ATS Platforms
-- Greenhouse
-- Lever
-- Workday
-- BambooHR
-- SmartRecruiters
-- Indeed
-- LinkedIn
-
-## 🚀 Deployment
-
-### Vercel (Recommended)
-1. Push your code to GitHub
-2. Connect your repository to Vercel
-3. Set environment variables in Vercel dashboard
-4. Deploy automatically
-
-### Other Platforms
-The app can be deployed to any platform that supports Next.js:
-- Netlify
-- Railway
-- Heroku
-- AWS Amplify
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
-## 📄 License
-
-This project is licensed under the MIT License.
-
-## 🙏 Acknowledgments
-
-- OpenAI for the powerful GPT API
-- Next.js team for the amazing framework
-- Tailwind CSS for the utility-first CSS framework
-- All the open-source libraries that make this project possible
+MIT
 
 ---
 

@@ -2,12 +2,80 @@ import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
 import { checkRateLimit } from '@/utils/rateLimit';
 import {
-  getOpenAIKey,
+  getBearerKey,
   openAIErrorResponse,
   parseJsonBody,
   rateLimitResponse,
 } from '@/utils/apiHelpers';
 import { MAX_JOB_DESCRIPTION_CHARS, MAX_RESUME_CHARS } from '@/config/apiLimits';
+import { consumeAiQuota, getEntitlement } from '@/lib/entitlements';
+import { isClerkConfigured } from '@/lib/entitlements';
+import { isPaidTier } from '@/lib/tiers';
+
+/**
+ * Resolves the OpenAI key this request may use.
+ * - BYOK (Authorization: Bearer <key>) is always allowed, free, and unmetered.
+ * - Otherwise the SERVER key is gated: signed-in paid tier + monthly quota.
+ * - Dev/OSS mode: when Supabase is not configured at all there are no
+ *   accounts to gate on, so we keep the legacy behavior and use the server
+ *   env key directly, ungated — local dev without accounts keeps working.
+ * NOTE: duplicated in generate-cover-letter/route.ts — keep the two in sync.
+ */
+async function resolveOpenAIKey(
+  request: NextRequest
+): Promise<{ apiKey: string; errorResponse?: never } | { apiKey?: never; errorResponse: NextResponse }> {
+  const bearerKey = getBearerKey(request);
+  if (bearerKey) {
+    return { apiKey: bearerKey };
+  }
+
+  if (!isClerkConfigured()) {
+    const envKey = process.env.OPENAI_API_KEY;
+    if (envKey) return { apiKey: envKey };
+    return {
+      errorResponse: NextResponse.json({ error: 'OpenAI API key is required' }, { status: 401 }),
+    };
+  }
+
+  const { userId, tier } = await getEntitlement();
+  if (!userId) {
+    return {
+      errorResponse: NextResponse.json(
+        { error: 'Add your own OpenAI API key, or sign in with a Pro or Enterprise plan to use ours.' },
+        { status: 401 }
+      ),
+    };
+  }
+  if (!isPaidTier(tier)) {
+    return {
+      errorResponse: NextResponse.json(
+        { error: 'AI without an API key requires a Pro or Enterprise plan ($2/$5 one-time), or add your own OpenAI API key.' },
+        { status: 403 }
+      ),
+    };
+  }
+
+  const quota = await consumeAiQuota(userId, tier);
+  if (!quota.allowed) {
+    return {
+      errorResponse: NextResponse.json(
+        { error: `You've used all ${quota.quota} included AI operations this month. They reset next month — or add your own OpenAI API key for unlimited use.` },
+        { status: 429 }
+      ),
+    };
+  }
+
+  const envKey = process.env.OPENAI_API_KEY;
+  if (!envKey) {
+    return {
+      errorResponse: NextResponse.json(
+        { error: 'AI is not configured on this server' },
+        { status: 503 }
+      ),
+    };
+  }
+  return { apiKey: envKey };
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -44,14 +112,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get API key from Authorization header or environment
-    const apiKey = getOpenAIKey(request);
-    if (!apiKey) {
-      return NextResponse.json(
-        { error: 'OpenAI API key is required' },
-        { status: 401 }
-      );
+    // Resolve the key AFTER validation so invalid requests never burn quota:
+    // user's own key (free), or the server key gated by paid-tier quota.
+    const keyResult = await resolveOpenAIKey(request);
+    if (keyResult.errorResponse) {
+      return keyResult.errorResponse;
     }
+    const apiKey = keyResult.apiKey;
 
     // Initialize OpenAI client with the provided API key
     const openai = new OpenAI({
