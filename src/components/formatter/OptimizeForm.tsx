@@ -46,7 +46,7 @@ export function OptimizeForm({
         <FileUploader
           onFileSelect={onFileChange}
           selectedFile={resumeFile}
-          accept=".pdf,.doc,.docx,.txt"
+          accept=".pdf,.docx,.txt"
         />
         {error && (
           <motion.p

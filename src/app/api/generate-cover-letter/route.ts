@@ -4,6 +4,7 @@ import { checkRateLimit } from '@/utils/rateLimit';
 
 const MAX_RESUME_CHARS = 20000;
 const MAX_JOB_DESCRIPTION_CHARS = 10000;
+const MAX_TITLE_COMPANY_CHARS = 200;
 
 export async function POST(request: NextRequest) {
   try {
@@ -40,6 +41,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: 'Resume must be a string' },
         { status: 400 }
+      );
+    }
+
+    if (jobTitle.length > MAX_TITLE_COMPANY_CHARS || company.length > MAX_TITLE_COMPANY_CHARS) {
+      return NextResponse.json(
+        { error: `Job title and company must each be at most ${MAX_TITLE_COMPANY_CHARS} characters.` },
+        { status: 413 }
       );
     }
 
@@ -111,6 +119,13 @@ export async function POST(request: NextRequest) {
       temperature: 0.7,
       max_tokens: 1500,
     });
+
+    if (completion.choices[0].finish_reason === 'length') {
+      return NextResponse.json(
+        { error: 'The generated cover letter was cut off. Please try a shorter job description or resume.' },
+        { status: 422 }
+      );
+    }
 
     const coverLetter = completion.choices[0].message.content;
 

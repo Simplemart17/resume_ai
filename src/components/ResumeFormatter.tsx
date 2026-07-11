@@ -105,7 +105,8 @@ export function ResumeFormatter() {
       });
 
       if (!uploadResponse.ok) {
-        throw new Error('Failed to process resume file');
+        const errorData = await uploadResponse.json().catch(() => null);
+        throw new Error(errorData?.error || 'Failed to process resume file');
       }
 
       const { text } = await uploadResponse.json();

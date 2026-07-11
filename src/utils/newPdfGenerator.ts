@@ -34,6 +34,16 @@ export class NewPDFGenerator {
   }
 
   /**
+   * Joins two formatted dates with " - ", omitting the dash when either side
+   * is empty (education entries only carry a graduation date, for example).
+   */
+  private static formatDateRange(startDate: string, endDate: string): string {
+    return [this.formatDate(startDate), this.formatDate(endDate)]
+      .filter(Boolean)
+      .join(" - ");
+  }
+
+  /**
    * Returns a y position guaranteed to have `neededHeight` mm of room above
    * the bottom margin, adding a new page (and resetting to the top margin)
    * when the current page would overflow.
@@ -158,9 +168,7 @@ export class NewPDFGenerator {
         pdf.setFont("helvetica", "bold");
         pdf.text(`${edu.degree} in ${edu.field}`, margin, yPos);
 
-        const dateRange = `${this.formatDate(
-          edu.startDate
-        )} - ${this.formatDate(edu.endDate)}`;
+        const dateRange = this.formatDateRange(edu.startDate, edu.endDate);
         pdf.text(dateRange, pageWidth - margin, yPos, { align: "right" });
         yPos += 6;
 
@@ -267,13 +275,25 @@ export class NewPDFGenerator {
     const leftColWidth = (pageWidth - 3 * margin) / 2;
     const rightColStart = margin + leftColWidth + margin;
 
+    // Wrap each skill to the column width up front so the keep-together
+    // estimate and the rendering agree on line counts. Wrapping must happen
+    // at the same font size the lines are rendered with (10pt normal).
+    pdf.setFontSize(10);
+    pdf.setFont("helvetica", "normal");
+    const skillLines: string[][] = data.skills.map(
+      (skill) => pdf.splitTextToSize(`• ${skill}`, leftColWidth) as string[]
+    );
+    const totalSkillLines = skillLines.reduce(
+      (sum, lines) => sum + lines.length,
+      0
+    );
+
     // Try to keep the two-column section together: if the taller column
     // does not fit on the current page (but would fit on a fresh one),
     // start the section on a new page.
     const eduHeight =
       data.education.length > 0 ? 12 + data.education.length * 20 : 0;
-    const skillsHeight =
-      data.skills.length > 0 ? 12 + data.skills.length * 5 : 0;
+    const skillsHeight = data.skills.length > 0 ? 12 + totalSkillLines * 5 : 0;
     const maxUsable =
       pageHeight - this.BOTTOM_MARGIN - this.CONTINUATION_TOP;
     yPos = this.ensureSpace(
@@ -325,11 +345,7 @@ export class NewPDFGenerator {
         pdf.text(edu.institution, margin, leftYPos);
         leftYPos += 5;
 
-        pdf.text(
-          `${this.formatDate(edu.startDate)} - ${this.formatDate(edu.endDate)}`,
-          margin,
-          leftYPos
-        );
+        pdf.text(this.formatDateRange(edu.startDate, edu.endDate), margin, leftYPos);
         leftYPos += 10;
       });
     }
@@ -346,13 +362,15 @@ export class NewPDFGenerator {
 
       pdf.setFontSize(10);
       pdf.setFont("helvetica", "normal");
-      data.skills.forEach((skill) => {
-        const pos = columnBreak(rightYPos, rightPage, 5);
-        rightYPos = pos.y;
-        rightPage = pos.page;
+      skillLines.forEach((lines) => {
+        lines.forEach((line) => {
+          const pos = columnBreak(rightYPos, rightPage, 5);
+          rightYPos = pos.y;
+          rightPage = pos.page;
 
-        pdf.text(`• ${skill}`, rightColStart, rightYPos);
-        rightYPos += 5;
+          pdf.text(line, rightColStart, rightYPos);
+          rightYPos += 5;
+        });
       });
     }
 

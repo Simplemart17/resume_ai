@@ -28,12 +28,22 @@ const MAX_ENTRIES_PER_BUCKET = 5000;
 const buckets = new Map<string, Map<string, RateLimitEntry>>();
 
 function getClientKey(request: NextRequest): string {
-  // Only trust the FIRST hop of x-forwarded-for; the rest is client-controlled noise.
-  return (
-    request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
-    request.headers.get('x-real-ip')?.trim() ||
-    'unknown'
-  );
+  // Prefer x-real-ip: it is set by the platform (Vercel, typical nginx configs)
+  // and cannot be forged by the client. Fall back to the RIGHTMOST hop of
+  // x-forwarded-for — proxies APPEND the real client IP, so the rightmost entry
+  // is the one added by the nearest trusted proxy; everything left of it is
+  // client-controlled and must not be trusted as an identity.
+  const realIp = request.headers.get('x-real-ip')?.trim();
+  if (realIp) return realIp;
+
+  const forwarded = request.headers.get('x-forwarded-for');
+  if (forwarded) {
+    const hops = forwarded.split(',');
+    const nearest = hops[hops.length - 1]?.trim();
+    if (nearest) return nearest;
+  }
+
+  return 'unknown';
 }
 
 export function checkRateLimit(

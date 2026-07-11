@@ -17,7 +17,7 @@ export function UploadTab({ onFileSelect, selectedFile, loading }: UploadTabProp
       <FileUploader
         onFileSelect={onFileSelect}
         selectedFile={selectedFile}
-        accept=".pdf,.doc,.docx,.txt"
+        accept=".pdf,.docx,.txt"
       />
       {loading && (
         <div className="mt-4 text-center">

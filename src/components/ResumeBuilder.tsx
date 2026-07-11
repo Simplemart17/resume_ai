@@ -62,7 +62,8 @@ export function ResumeBuilder() {
         });
 
         if (!response.ok) {
-          throw new Error('Failed to parse resume');
+          const errorData = await response.json().catch(() => null);
+          throw new Error(errorData?.error || 'Failed to parse resume');
         }
 
         const data = await response.json();
