@@ -8,7 +8,7 @@ import { JobApplicationFiller } from './JobApplicationFiller';
 import { SkillsVisualization } from './SkillsVisualization';
 import { motion } from 'framer-motion';
 import { apiKeyManager } from '@/utils/apiKeyManager';
-import toast, { Toaster } from 'react-hot-toast';
+import toast from 'react-hot-toast';
 
 interface FormattedResult {
   optimizedResume: string;
@@ -22,6 +22,8 @@ export function ResumeFormatter() {
   const [resumeFile, setResumeFile] = useState<File | null>(null);
   const [resumeText, setResumeText] = useState('');
   const [jobDescription, setJobDescription] = useState('');
+  const [jobTitle, setJobTitle] = useState('');
+  const [company, setCompany] = useState('');
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<FormattedResult | null>(null);
   const [error, setError] = useState('');
@@ -42,10 +44,36 @@ export function ResumeFormatter() {
       setSafeCoverLetter('');
       return;
     }
-    import('dompurify').then(({ default: DOMPurify }) => {
-      setSafeCoverLetter(DOMPurify.sanitize(coverLetter));
-    });
+    import('dompurify')
+      .then(({ default: DOMPurify }) => {
+        setSafeCoverLetter(DOMPurify.sanitize(coverLetter));
+      })
+      .catch(() => {
+        // DOMPurify failed to load — fall back to escaped plain text so the
+        // letter still renders (safely) instead of staying blank
+        setSafeCoverLetter(
+          coverLetter
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;')
+        );
+      });
   }, [coverLetter]);
+
+  // Attach the user's key whenever one is set (routes fall back to the server
+  // key when the header is absent)
+  const buildRequestHeaders = (): Record<string, string> => {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+    const apiKey = apiKeyManager.getApiKey();
+    if (apiKey) {
+      headers['Authorization'] = `Bearer ${apiKey}`;
+    }
+    return headers;
+  };
 
   const handleFileChange = (file: File | null) => {
     setResumeFile(file);
@@ -87,19 +115,10 @@ export function ResumeFormatter() {
       const { text } = await uploadResponse.json();
       setResumeText(text);
 
-      // Now format the resume with API key (only in production)
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-      };
-
-      // Only add Authorization header in production
-      if (process.env.NODE_ENV === 'production' && apiKeyManager.getApiKey()) {
-        headers['Authorization'] = `Bearer ${apiKeyManager.getApiKey()}`;
-      }
-
+      // Now format the resume, forwarding the user's API key if one is set
       const formatResponse = await fetch('/api/format-resume', {
         method: 'POST',
-        headers,
+        headers: buildRequestHeaders(),
         body: JSON.stringify({ resume: text, jobDescription }),
       });
 
@@ -128,22 +147,14 @@ export function ResumeFormatter() {
     setCoverLetterError(null);
 
     try {
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-      };
-
-      // Only add Authorization header in production
-      if (process.env.NODE_ENV === 'production' && apiKeyManager.getApiKey()) {
-        headers['Authorization'] = `Bearer ${apiKeyManager.getApiKey()}`;
-      }
-
       const response = await fetch('/api/generate-cover-letter', {
         method: 'POST',
-        headers,
+        headers: buildRequestHeaders(),
         body: JSON.stringify({
-          jobTitle: jobDescription.match(/(?:position|job title|role):?\s*([^.;\n]+)/i)?.[1] || 'the position',
-          company: jobDescription.match(/(?:at|with|for)\s+([^.;\n]+)/i)?.[1] || 'the company',
-          jobDescription: jobDescription
+          jobTitle: jobTitle.trim() || jobDescription.match(/(?:position|job title|role):?\s*([^.;\n]+)/i)?.[1] || 'the position',
+          company: company.trim() || jobDescription.match(/(?:at|with|for)\s+([^.;\n]+)/i)?.[1] || 'the company',
+          jobDescription: jobDescription,
+          resume: result.optimizedResume
         }),
       });
 
@@ -164,8 +175,6 @@ export function ResumeFormatter() {
 
   return (
     <div className="max-w-6xl mx-auto">
-      <Toaster position="top-right" />
-
       {/* Header */}
       <div
         className="py-8 px-6 rounded-t-xl text-white"
@@ -242,6 +251,37 @@ export function ResumeFormatter() {
             </div>
           </div>
 
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <label htmlFor="jobTitle" className="mb-2 block text-sm font-semibold text-gray-700">
+                Job Title <span className="font-normal text-gray-500">(optional)</span>
+              </label>
+              <input
+                id="jobTitle"
+                name="jobTitle"
+                type="text"
+                className="mt-1 block w-full rounded-lg border border-gray-300 text-gray-700 p-3 shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                placeholder="e.g. Senior Software Engineer"
+                value={jobTitle}
+                onChange={(e) => setJobTitle(e.target.value)}
+              />
+            </div>
+            <div>
+              <label htmlFor="company" className="mb-2 block text-sm font-semibold text-gray-700">
+                Company <span className="font-normal text-gray-500">(optional)</span>
+              </label>
+              <input
+                id="company"
+                name="company"
+                type="text"
+                className="mt-1 block w-full rounded-lg border border-gray-300 text-gray-700 p-3 shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                placeholder="e.g. Acme Corp"
+                value={company}
+                onChange={(e) => setCompany(e.target.value)}
+              />
+            </div>
+          </div>
+
           <motion.button
             type="submit"
             disabled={loading || !resumeFile}
@@ -287,7 +327,7 @@ export function ResumeFormatter() {
                     className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 flex items-center space-x-2 ${
                       activeTab === tab.id
                       ? 'text-white shadow-lg transform scale-105'
-                      : 'text-gray-700 hover:bg-gray-200 bg-gray-100 hover:scale-102'
+                      : 'text-gray-700 hover:bg-gray-200 bg-gray-100 hover:scale-[1.02]'
                     }`}
                     style={activeTab === tab.id ? {
                       background: 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)'
@@ -299,7 +339,7 @@ export function ResumeFormatter() {
                 ))}
               </div>
 
-              {activeTab === 'resume' && !coverLetter && (
+              {activeTab === 'resume' && (
                 <motion.button
                   onClick={handleGenerateCoverLetter}
                   disabled={generatingCoverLetter}
@@ -320,7 +360,7 @@ export function ResumeFormatter() {
                       <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                       </svg>
-                      Generate Cover Letter
+                      {coverLetter ? 'Regenerate Cover Letter' : 'Generate Cover Letter'}
                     </>
                   )}
                 </motion.button>
@@ -494,19 +534,11 @@ export function ResumeFormatter() {
                 animate={{ opacity: 1 }}
                 transition={{ duration: 0.3 }}
               >
-                {result ? (
-                  <SkillsVisualization
-                    matchingSkills={result.matchingSkills}
-                    missingSkills={result.missingSkills}
-                    matchScore={result.matchScore}
-                  />
-                ) : (
-                  <div className="text-center py-12 text-gray-500">
-                    <div className="text-6xl mb-4">📈</div>
-                    <h3 className="text-xl font-semibold mb-2">No Analysis Available</h3>
-                    <p>Upload and optimize your resume first to see the dashboard</p>
-                  </div>
-                )}
+                <SkillsVisualization
+                  matchingSkills={result.matchingSkills}
+                  missingSkills={result.missingSkills}
+                  matchScore={result.matchScore}
+                />
               </motion.div>
             ) : activeTab === 'templates' ? (
               <motion.div

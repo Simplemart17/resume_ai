@@ -1,22 +1,126 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FiUpload, FiFileText, FiEye, FiSettings, FiUser, FiPlus, FiTrash2, FiEdit3 } from 'react-icons/fi';
 import { FileUploader } from './FileUploader';
 import { ApiKeyManager } from './ApiKeyManager';
 import { NewResumeTemplates } from './NewResumeTemplates';
-import { apiKeyManager } from '@/utils/apiKeyManager';
-import toast, { Toaster } from 'react-hot-toast';
+import toast from 'react-hot-toast';
 import Link from 'next/link';
-import type { ResumeData, Experience, Education } from '@/types/resume';
+import type { ResumeData, Experience, Education, PersonalInfo } from '@/types/resume';
+
+// Shape returned by /api/parse-resume in `structured` — differs from ResumeData
+interface ParsedExperience {
+  company?: string;
+  position?: string;
+  startDate?: string;
+  endDate?: string;
+  description?: string;
+}
+
+interface ParsedEducation {
+  institution?: string;
+  degree?: string;
+  field?: string;
+  graduationDate?: string;
+}
+
+interface ParsedResume {
+  personalInfo?: Partial<PersonalInfo>;
+  summary?: string;
+  experience?: ParsedExperience[];
+  education?: ParsedEducation[];
+  skills?: string[];
+}
+
+const MONTH_NAMES: Record<string, string> = {
+  jan: '01', january: '01',
+  feb: '02', february: '02',
+  mar: '03', march: '03',
+  apr: '04', april: '04',
+  may: '05',
+  jun: '06', june: '06',
+  jul: '07', july: '07',
+  aug: '08', august: '08',
+  sep: '09', sept: '09', september: '09',
+  oct: '10', october: '10',
+  nov: '11', november: '11',
+  dec: '12', december: '12'
+};
+
+// Normalize a parsed date toward the YYYY-MM format required by <input type="month">.
+// Only converts confidently ("May 2020", "2020-05", "05/2020"); anything else
+// (e.g. a bare year) returns '' so the user can fill it in rather than getting wrong data.
+function toMonthInputValue(raw?: string): string {
+  if (!raw) return '';
+  const value = raw.trim();
+
+  const isoMatch = value.match(/^(\d{4})-(0[1-9]|1[0-2])$/);
+  if (isoMatch) return value;
+
+  const monthNameMatch = value.match(/^([A-Za-z]+)\.?\s+(\d{4})$/);
+  if (monthNameMatch) {
+    const month = MONTH_NAMES[monthNameMatch[1].toLowerCase()];
+    if (month) return `${monthNameMatch[2]}-${month}`;
+  }
+
+  const numericMatch = value.match(/^(\d{1,2})\/(\d{4})$/);
+  if (numericMatch) {
+    const month = Number(numericMatch[1]);
+    if (month >= 1 && month <= 12) {
+      return `${numericMatch[2]}-${String(month).padStart(2, '0')}`;
+    }
+  }
+
+  return '';
+}
+
+// Map the parse-resume API response into ResumeData: generate ids, derive
+// `current`, and rename education graduationDate -> endDate.
+function mapParsedResume(parsed: ParsedResume): ResumeData {
+  return {
+    personalInfo: {
+      fullName: parsed.personalInfo?.fullName ?? '',
+      email: parsed.personalInfo?.email ?? '',
+      phone: parsed.personalInfo?.phone ?? '',
+      location: parsed.personalInfo?.location ?? '',
+      website: parsed.personalInfo?.website ?? '',
+      linkedin: parsed.personalInfo?.linkedin ?? ''
+    },
+    summary: parsed.summary ?? '',
+    experience: (parsed.experience ?? []).map((exp): Experience => {
+      const current = /present/i.test(exp.endDate ?? '');
+      return {
+        id: crypto.randomUUID(),
+        company: exp.company ?? '',
+        position: exp.position ?? '',
+        startDate: toMonthInputValue(exp.startDate),
+        endDate: current ? '' : toMonthInputValue(exp.endDate),
+        current,
+        description: exp.description ?? ''
+      };
+    }),
+    education: (parsed.education ?? []).map((edu): Education => ({
+      id: crypto.randomUUID(),
+      institution: edu.institution ?? '',
+      degree: edu.degree ?? '',
+      field: edu.field ?? '',
+      startDate: '',
+      endDate: toMonthInputValue(edu.graduationDate),
+      gpa: ''
+    })),
+    skills: parsed.skills ?? []
+  };
+}
 
 export function ResumeBuilder() {
   const [activeTab, setActiveTab] = useState<'upload' | 'build' | 'templates' | 'preview'>('upload');
   const [resumeFile, setResumeFile] = useState<File | null>(null);
   const [resumeText, setResumeText] = useState('');
   const [loading, setLoading] = useState(false);
-  const [hasApiKey, setHasApiKey] = useState(false);
+  // No reader on this page yet — ApiKeyManager reports key status via the setter
+  const [, setHasApiKey] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState('modern-professional');
 
   // Resume builder state
@@ -34,10 +138,6 @@ export function ResumeBuilder() {
     education: [],
     skills: []
   });
-
-  useEffect(() => {
-    setHasApiKey(apiKeyManager.hasApiKey());
-  }, []);
 
   const tabs = [
     { id: 'upload', label: 'Upload Resume', icon: <FiUpload className="w-5 h-5" /> },
@@ -68,7 +168,7 @@ export function ResumeBuilder() {
 
         // Try to parse structured data if available
         if (data.structured) {
-          setResumeData(data.structured);
+          setResumeData(mapParsedResume(data.structured));
         }
 
         toast.success('Resume uploaded and parsed successfully!');
@@ -97,7 +197,7 @@ export function ResumeBuilder() {
     }));
   };
 
-  const updateExperience = (id: string, field: keyof Experience, value: string | boolean | string[]) => {
+  const updateExperience = (id: string, field: keyof Experience, value: string | boolean) => {
     setResumeData(prev => ({
       ...prev,
       experience: prev.experience.map(exp =>
@@ -163,8 +263,6 @@ export function ResumeBuilder() {
 
   return (
     <div className="min-h-screen py-8 px-4 sm:px-6 lg:px-8">
-      <Toaster position="top-right" />
-
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="text-center mb-8">
@@ -177,19 +275,19 @@ export function ResumeBuilder() {
         </div>
 
         {/* API Key Manager */}
-        {!hasApiKey && (
-          <div className="mb-8">
-            <ApiKeyManager onApiKeySet={() => setHasApiKey(true)} />
-          </div>
-        )}
+        <div className="mb-8">
+          <ApiKeyManager onApiKeySet={setHasApiKey} />
+        </div>
 
         {/* Navigation Tabs */}
         <div className="bg-white rounded-xl shadow-lg mb-8 overflow-hidden">
           <div className="border-b border-gray-200">
-            <nav className="flex space-x-8 px-6" aria-label="Tabs">
+            <nav className="flex space-x-8 px-6" aria-label="Tabs" role="tablist">
               {tabs.map((tab) => (
                 <button
                   key={tab.id}
+                  role="tab"
+                  aria-selected={activeTab === tab.id}
                   onClick={() => setActiveTab(tab.id as 'upload' | 'build' | 'templates' | 'preview')}
                   className={`${activeTab === tab.id
                     ? 'border-blue-500 text-blue-600'
@@ -259,8 +357,9 @@ export function ResumeBuilder() {
                       </h3>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
+                          <label htmlFor="personal-full-name" className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
                           <input
+                            id="personal-full-name"
                             type="text"
                             value={resumeData.personalInfo.fullName}
                             onChange={(e) => setResumeData(prev => ({
@@ -272,8 +371,9 @@ export function ResumeBuilder() {
                           />
                         </div>
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                          <label htmlFor="personal-email" className="block text-sm font-medium text-gray-700 mb-1">Email</label>
                           <input
+                            id="personal-email"
                             type="email"
                             value={resumeData.personalInfo.email}
                             onChange={(e) => setResumeData(prev => ({
@@ -285,8 +385,9 @@ export function ResumeBuilder() {
                           />
                         </div>
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+                          <label htmlFor="personal-phone" className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
                           <input
+                            id="personal-phone"
                             type="tel"
                             value={resumeData.personalInfo.phone}
                             onChange={(e) => setResumeData(prev => ({
@@ -298,8 +399,9 @@ export function ResumeBuilder() {
                           />
                         </div>
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Location</label>
+                          <label htmlFor="personal-location" className="block text-sm font-medium text-gray-700 mb-1">Location</label>
                           <input
+                            id="personal-location"
                             type="text"
                             value={resumeData.personalInfo.location}
                             onChange={(e) => setResumeData(prev => ({
@@ -344,6 +446,7 @@ export function ResumeBuilder() {
                             <h4 className="font-medium text-gray-900">Experience {index + 1}</h4>
                             <button
                               onClick={() => removeExperience(exp.id)}
+                              aria-label="Remove experience"
                               className="text-red-600 hover:text-red-800 transition-colors"
                             >
                               <FiTrash2 className="w-4 h-4" />
@@ -352,8 +455,9 @@ export function ResumeBuilder() {
 
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                             <div>
-                              <label className="block text-sm font-medium text-gray-700 mb-1">Job Title</label>
+                              <label htmlFor={`exp-${exp.id}-position`} className="block text-sm font-medium text-gray-700 mb-1">Job Title</label>
                               <input
+                                id={`exp-${exp.id}-position`}
                                 type="text"
                                 value={exp.position}
                                 onChange={(e) => updateExperience(exp.id, 'position', e.target.value)}
@@ -362,8 +466,9 @@ export function ResumeBuilder() {
                               />
                             </div>
                             <div>
-                              <label className="block text-sm font-medium text-gray-700 mb-1">Company</label>
+                              <label htmlFor={`exp-${exp.id}-company`} className="block text-sm font-medium text-gray-700 mb-1">Company</label>
                               <input
+                                id={`exp-${exp.id}-company`}
                                 type="text"
                                 value={exp.company}
                                 onChange={(e) => updateExperience(exp.id, 'company', e.target.value)}
@@ -372,8 +477,9 @@ export function ResumeBuilder() {
                               />
                             </div>
                             <div>
-                              <label className="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
+                              <label htmlFor={`exp-${exp.id}-start-date`} className="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
                               <input
+                                id={`exp-${exp.id}-start-date`}
                                 type="month"
                                 value={exp.startDate}
                                 onChange={(e) => updateExperience(exp.id, 'startDate', e.target.value)}
@@ -381,8 +487,9 @@ export function ResumeBuilder() {
                               />
                             </div>
                             <div>
-                              <label className="block text-sm font-medium text-gray-700 mb-1">End Date</label>
+                              <label htmlFor={`exp-${exp.id}-end-date`} className="block text-sm font-medium text-gray-700 mb-1">End Date</label>
                               <input
+                                id={`exp-${exp.id}-end-date`}
                                 type="month"
                                 value={exp.endDate}
                                 onChange={(e) => updateExperience(exp.id, 'endDate', e.target.value)}
@@ -402,8 +509,9 @@ export function ResumeBuilder() {
                           </div>
 
                           <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                            <label htmlFor={`exp-${exp.id}-description`} className="block text-sm font-medium text-gray-700 mb-1">Description</label>
                             <textarea
+                              id={`exp-${exp.id}-description`}
                               value={exp.description}
                               onChange={(e) => updateExperience(exp.id, 'description', e.target.value)}
                               rows={3}
@@ -434,6 +542,7 @@ export function ResumeBuilder() {
                             <h4 className="font-medium text-gray-900">Education {index + 1}</h4>
                             <button
                               onClick={() => removeEducation(edu.id)}
+                              aria-label="Remove education"
                               className="text-red-600 hover:text-red-800 transition-colors"
                             >
                               <FiTrash2 className="w-4 h-4" />
@@ -442,8 +551,9 @@ export function ResumeBuilder() {
 
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
-                              <label className="block text-sm font-medium text-gray-700 mb-1">Institution</label>
+                              <label htmlFor={`edu-${edu.id}-institution`} className="block text-sm font-medium text-gray-700 mb-1">Institution</label>
                               <input
+                                id={`edu-${edu.id}-institution`}
                                 type="text"
                                 value={edu.institution}
                                 onChange={(e) => updateEducation(edu.id, 'institution', e.target.value)}
@@ -452,8 +562,9 @@ export function ResumeBuilder() {
                               />
                             </div>
                             <div>
-                              <label className="block text-sm font-medium text-gray-700 mb-1">Degree</label>
+                              <label htmlFor={`edu-${edu.id}-degree`} className="block text-sm font-medium text-gray-700 mb-1">Degree</label>
                               <input
+                                id={`edu-${edu.id}-degree`}
                                 type="text"
                                 value={edu.degree}
                                 onChange={(e) => updateEducation(edu.id, 'degree', e.target.value)}
@@ -462,8 +573,9 @@ export function ResumeBuilder() {
                               />
                             </div>
                             <div>
-                              <label className="block text-sm font-medium text-gray-700 mb-1">Field of Study</label>
+                              <label htmlFor={`edu-${edu.id}-field`} className="block text-sm font-medium text-gray-700 mb-1">Field of Study</label>
                               <input
+                                id={`edu-${edu.id}-field`}
                                 type="text"
                                 value={edu.field}
                                 onChange={(e) => updateEducation(edu.id, 'field', e.target.value)}
@@ -472,8 +584,9 @@ export function ResumeBuilder() {
                               />
                             </div>
                             <div>
-                              <label className="block text-sm font-medium text-gray-700 mb-1">Graduation Year</label>
+                              <label htmlFor={`edu-${edu.id}-end-date`} className="block text-sm font-medium text-gray-700 mb-1">Graduation Year</label>
                               <input
+                                id={`edu-${edu.id}-end-date`}
                                 type="month"
                                 value={edu.endDate}
                                 onChange={(e) => updateEducation(edu.id, 'endDate', e.target.value)}
@@ -510,6 +623,7 @@ export function ResumeBuilder() {
                             {skill}
                             <button
                               onClick={() => removeSkill(skill)}
+                              aria-label={`Remove skill ${skill}`}
                               className="text-blue-600 hover:text-blue-800"
                             >
                               <FiTrash2 className="w-3 h-3" />
@@ -578,8 +692,8 @@ export function ResumeBuilder() {
                               {resumeData.experience.length > 0 && (
                                 <div className="mb-6">
                                   <h2 className="text-xl font-semibold text-gray-900 mb-3">Experience</h2>
-                                  {resumeData.experience.map((exp, index) => (
-                                    <div key={index} className="mb-4">
+                                  {resumeData.experience.map((exp) => (
+                                    <div key={exp.id} className="mb-4">
                                       <h3 className="font-semibold text-gray-900">{exp.position}</h3>
                                       <p className="text-gray-600">{exp.company}</p>
                                       <p className="text-sm text-gray-500 mb-2">
@@ -594,8 +708,8 @@ export function ResumeBuilder() {
                               {resumeData.education.length > 0 && (
                                 <div className="mb-6">
                                   <h2 className="text-xl font-semibold text-gray-900 mb-3">Education</h2>
-                                  {resumeData.education.map((edu, index) => (
-                                    <div key={index} className="mb-3">
+                                  {resumeData.education.map((edu) => (
+                                    <div key={edu.id} className="mb-3">
                                       <h3 className="font-semibold text-gray-900">{edu.degree} in {edu.field}</h3>
                                       <p className="text-gray-600">{edu.institution}</p>
                                       <p className="text-sm text-gray-500">{edu.endDate}</p>

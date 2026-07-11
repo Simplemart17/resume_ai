@@ -14,6 +14,9 @@ interface SkillsVisualizationProps {
 }
 
 export function SkillsVisualization({ matchingSkills, missingSkills, matchScore }: SkillsVisualizationProps) {
+  const totalSkills = matchingSkills.length + missingSkills.length;
+  const skillCoverage = totalSkills ? Math.round((matchingSkills.length / totalSkills) * 100) : 0;
+
   const skillsData = {
     labels: [...matchingSkills.slice(0, 8), ...missingSkills.slice(0, 4)],
     datasets: [
@@ -162,7 +165,7 @@ export function SkillsVisualization({ matchingSkills, missingSkills, matchScore 
             </div>
             <div className="bg-white rounded-lg p-4 shadow-sm">
               <div className="text-2xl font-bold text-indigo-600">
-                {Math.round((matchingSkills.length / (matchingSkills.length + missingSkills.length)) * 100)}%
+                {skillCoverage}%
               </div>
               <div className="text-sm text-gray-600">Skill Coverage</div>
             </div>
