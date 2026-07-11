@@ -2,11 +2,14 @@
 
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { FiUpload, FiCopy, FiCheck, FiUser } from 'react-icons/fi';
+import { FiUpload, FiUser } from 'react-icons/fi';
 import { FileUploader } from './FileUploader';
 import { JobApplicationFiller } from './JobApplicationFiller';
-import toast, { Toaster } from 'react-hot-toast';
+import { CopyButton } from './CopyButton';
+import toast from 'react-hot-toast';
 
+// Intentionally separate from ResumeData (see CLAUDE.md): this mirrors the
+// parts of the parse-resume API response that this page actually renders.
 interface ExtractedData {
   personalInfo: {
     fullName: string;
@@ -17,27 +20,14 @@ interface ExtractedData {
     linkedin: string;
   };
   summary: string;
-  experience: Array<{
-    company: string;
-    position: string;
-    startDate: string;
-    endDate: string;
-    description: string;
-  }>;
-  education: Array<{
-    institution: string;
-    degree: string;
-    field: string;
-    graduationDate: string;
-  }>;
   skills: string[];
 }
 
 export function AutoFillApp() {
   const [resumeFile, setResumeFile] = useState<File | null>(null);
   const [extractedData, setExtractedData] = useState<ExtractedData | null>(null);
+  const [resumeText, setResumeText] = useState('');
   const [loading, setLoading] = useState(false);
-  const [copiedField, setCopiedField] = useState<string | null>(null);
 
   const handleFileSelect = async (file: File | null) => {
     setResumeFile(file);
@@ -46,18 +36,21 @@ export function AutoFillApp() {
       try {
         const formData = new FormData();
         formData.append('file', file);
-        
+
         const response = await fetch('/api/parse-resume', {
           method: 'POST',
           body: formData,
         });
-        
+
         if (!response.ok) {
           throw new Error('Failed to parse resume');
         }
-        
+
         const data = await response.json();
-        
+
+        // Keep the raw parsed text for downstream consumers (e.g. JobApplicationFiller)
+        setResumeText(data.text || '');
+
         // Transform the parsed data into the format we need
         setExtractedData({
           personalInfo: data.structured?.personalInfo || {
@@ -69,11 +62,9 @@ export function AutoFillApp() {
             linkedin: ''
           },
           summary: data.structured?.summary || '',
-          experience: data.structured?.experience || [],
-          education: data.structured?.education || [],
           skills: data.structured?.skills || []
         });
-        
+
         toast.success('Resume data extracted successfully!');
       } catch (error) {
         console.error('Error parsing resume:', error);
@@ -84,35 +75,8 @@ export function AutoFillApp() {
     }
   };
 
-  const copyToClipboard = async (text: string, fieldName: string) => {
-    try {
-      await navigator.clipboard.writeText(text);
-      setCopiedField(fieldName);
-      toast.success(`${fieldName} copied to clipboard!`);
-      setTimeout(() => setCopiedField(null), 2000);
-    } catch {
-      toast.error('Failed to copy to clipboard');
-    }
-  };
-
-  const CopyButton = ({ text, fieldName }: { text: string; fieldName: string }) => (
-    <button
-      onClick={() => copyToClipboard(text, fieldName)}
-      className="ml-2 p-1 text-gray-400 hover:text-blue-600 transition-colors"
-      title={`Copy ${fieldName}`}
-    >
-      {copiedField === fieldName ? (
-        <FiCheck className="w-4 h-4 text-green-600" />
-      ) : (
-        <FiCopy className="w-4 h-4" />
-      )}
-    </button>
-  );
-
   return (
     <div className="min-h-screen py-8 px-4 sm:px-6 lg:px-8">
-      <Toaster position="top-right" />
-      
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="text-center mb-8">
@@ -184,7 +148,7 @@ export function AutoFillApp() {
                       <label className="text-sm font-medium text-gray-600">Full Name</label>
                       <p className="text-gray-900">{extractedData.personalInfo.fullName}</p>
                     </div>
-                    <CopyButton text={extractedData.personalInfo.fullName} fieldName="Full Name" />
+                    <CopyButton text={extractedData.personalInfo.fullName} label="Full Name" className="ml-2" />
                   </div>
                 )}
                 
@@ -194,7 +158,7 @@ export function AutoFillApp() {
                       <label className="text-sm font-medium text-gray-600">Email</label>
                       <p className="text-gray-900">{extractedData.personalInfo.email}</p>
                     </div>
-                    <CopyButton text={extractedData.personalInfo.email} fieldName="Email" />
+                    <CopyButton text={extractedData.personalInfo.email} label="Email" className="ml-2" />
                   </div>
                 )}
                 
@@ -204,7 +168,7 @@ export function AutoFillApp() {
                       <label className="text-sm font-medium text-gray-600">Phone</label>
                       <p className="text-gray-900">{extractedData.personalInfo.phone}</p>
                     </div>
-                    <CopyButton text={extractedData.personalInfo.phone} fieldName="Phone" />
+                    <CopyButton text={extractedData.personalInfo.phone} label="Phone" className="ml-2" />
                   </div>
                 )}
                 
@@ -214,7 +178,7 @@ export function AutoFillApp() {
                       <label className="text-sm font-medium text-gray-600">Location</label>
                       <p className="text-gray-900">{extractedData.personalInfo.location}</p>
                     </div>
-                    <CopyButton text={extractedData.personalInfo.location} fieldName="Location" />
+                    <CopyButton text={extractedData.personalInfo.location} label="Location" className="ml-2" />
                   </div>
                 )}
               </div>
@@ -234,7 +198,7 @@ export function AutoFillApp() {
                     </span>
                   ))}
                 </div>
-                <CopyButton text={extractedData.skills.join(', ')} fieldName="Skills" />
+                <CopyButton text={extractedData.skills.join(', ')} label="Skills" />
               </div>
             )}
 
@@ -244,14 +208,14 @@ export function AutoFillApp() {
                 <h3 className="text-xl font-semibold text-gray-900 mb-4">Professional Summary</h3>
                 <div className="flex justify-between items-start">
                   <p className="text-gray-700 flex-1">{extractedData.summary}</p>
-                  <CopyButton text={extractedData.summary} fieldName="Summary" />
+                  <CopyButton text={extractedData.summary} label="Summary" className="ml-2" />
                 </div>
               </div>
             )}
 
             {/* Job Application Filler */}
             <div className="bg-white rounded-xl shadow-lg p-6">
-              <JobApplicationFiller resumeText={JSON.stringify(extractedData)} />
+              <JobApplicationFiller resumeText={resumeText} structuredData={extractedData} />
             </div>
 
             {/* Reset Button */}
@@ -259,6 +223,7 @@ export function AutoFillApp() {
               <button
                 onClick={() => {
                   setExtractedData(null);
+                  setResumeText('');
                   setResumeFile(null);
                 }}
                 className="bg-gray-600 hover:bg-gray-700 text-white px-6 py-3 rounded-lg font-semibold transition-colors duration-200"

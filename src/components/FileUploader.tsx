@@ -1,7 +1,9 @@
 'use client';
 
-import { useCallback, useState } from 'react';
+import { useCallback, useId, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
+
+const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB, matches the server-side limit
 
 interface FileUploaderProps {
   onFileSelect: (file: File | null) => void;
@@ -11,13 +13,47 @@ interface FileUploaderProps {
 
 export function FileUploader({ onFileSelect, selectedFile, accept }: FileUploaderProps) {
   const [isDragging, setIsDragging] = useState(false);
+  // Depth counter: dragging over child elements fires dragleave on the parent,
+  // so a plain boolean flickers. Only reset when we've left the outermost element.
+  const dragDepth = useRef(0);
+  const inputId = useId();
 
-  const handleDrag = useCallback((e: React.DragEvent) => {
+  const validateFile = useCallback((file: File): boolean => {
+    const allowedExtensions = accept
+      .split(',')
+      .map(type => type.replace('*', '').trim().toLowerCase())
+      .filter(Boolean);
+    const hasAllowedExtension = allowedExtensions.some(ext =>
+      file.name.toLowerCase().endsWith(ext)
+    );
+    if (!hasAllowedExtension) {
+      toast.error('Unsupported file type. Please upload a PDF, DOC, DOCX, or TXT file.');
+      return false;
+    }
+    if (file.size > MAX_FILE_SIZE_BYTES) {
+      toast.error('File is too large. The maximum size is 10 MB.');
+      return false;
+    }
+    return true;
+  }, [accept]);
+
+  const handleDragEnter = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    if (e.type === 'dragenter' || e.type === 'dragover') {
-      setIsDragging(true);
-    } else if (e.type === 'dragleave') {
+    dragDepth.current += 1;
+    setIsDragging(true);
+  }, []);
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragDepth.current = Math.max(0, dragDepth.current - 1);
+    if (dragDepth.current === 0) {
       setIsDragging(false);
     }
   }, []);
@@ -25,23 +61,28 @@ export function FileUploader({ onFileSelect, selectedFile, accept }: FileUploade
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
+    dragDepth.current = 0;
     setIsDragging(false);
 
-    const files = Array.from(e.dataTransfer.files);
-    if (files.length > 0) {
-      const file = files[0];
-      if (accept.split(',').some(type => file.name.toLowerCase().endsWith(type.replace('*', '').trim()))) {
-        onFileSelect(file);
-      } else {
-        toast.error('Unsupported file type. Please upload a PDF, DOC, DOCX, or TXT file.');
-      }
+    const file = e.dataTransfer.files[0];
+    if (file && validateFile(file)) {
+      onFileSelect(file);
     }
-  }, [accept, onFileSelect]);
+  }, [validateFile, onFileSelect]);
 
   const handleFileInput = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0] || null;
-    onFileSelect(file);
-  }, [onFileSelect]);
+    if (!file) {
+      onFileSelect(null);
+      return;
+    }
+    if (validateFile(file)) {
+      onFileSelect(file);
+    } else {
+      // Clear the input so re-selecting the same file fires onChange again
+      e.target.value = '';
+    }
+  }, [validateFile, onFileSelect]);
 
   return (
     <div
@@ -49,9 +90,9 @@ export function FileUploader({ onFileSelect, selectedFile, accept }: FileUploade
         !isDragging ? 'border-gray-300 hover:border-gray-400' : ''
       }`}
       style={isDragging ? { borderColor: '#6366f1', backgroundColor: '#eef2ff' } : {}}
-      onDragEnter={handleDrag}
-      onDragLeave={handleDrag}
-      onDragOver={handleDrag}
+      onDragEnter={handleDragEnter}
+      onDragLeave={handleDragLeave}
+      onDragOver={handleDragOver}
       onDrop={handleDrop}
     >
       <input
@@ -59,10 +100,10 @@ export function FileUploader({ onFileSelect, selectedFile, accept }: FileUploade
         className="hidden"
         onChange={handleFileInput}
         accept={accept}
-        id="file-upload"
+        id={inputId}
       />
       <label
-        htmlFor="file-upload"
+        htmlFor={inputId}
         className="cursor-pointer inline-flex flex-col items-center p-6 text-center"
       >
         <svg
