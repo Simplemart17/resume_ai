@@ -5,9 +5,9 @@ import mammoth from 'mammoth';
 export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData();
-    const file = formData.get('file') as File;
+    const file = formData.get('file');
 
-    if (!file) {
+    if (!(file instanceof File)) {
       return NextResponse.json({ error: 'No file provided' }, { status: 400 });
     }
 
@@ -22,13 +22,24 @@ export async function POST(request: NextRequest) {
     const buffer = Buffer.from(await file.arrayBuffer());
     let text = '';
 
+    const fileName = file.name.toLowerCase();
+
     // Parse based on file type
     if (file.type === 'application/pdf') {
       const pdfData = await pdfParse(buffer);
       text = pdfData.text;
-    } else if (file.type.includes('word') || file.name.endsWith('.docx')) {
+    } else if (
+      file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+      fileName.endsWith('.docx')
+    ) {
       const result = await mammoth.extractRawText({ buffer });
       text = result.value;
+    } else if (file.type === 'application/msword' || fileName.endsWith('.doc')) {
+      // mammoth only supports .docx, not legacy .doc
+      return NextResponse.json(
+        { error: 'Legacy .doc files are not supported. Please convert your file to .docx and try again.' },
+        { status: 400 }
+      );
     } else if (file.type === 'text/plain') {
       text = buffer.toString('utf-8');
     } else {
