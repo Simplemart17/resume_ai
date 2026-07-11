@@ -16,10 +16,19 @@ No test framework is configured in this project.
 ## Environment Variables
 
 ```
-OPENAI_API_KEY    # Server-side OpenAI key (required for AI features in dev)
-ADZUNA_APP_ID     # Adzuna job search API ID
-ADZUNA_APP_KEY    # Adzuna job search API key
+OPENAI_API_KEY                        # Server-side OpenAI key (dev fallback + paid-tier usage)
+ADZUNA_APP_ID / ADZUNA_APP_KEY        # Adzuna job search API (route currently has no UI consumer)
+NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY     # Clerk (optional — enables accounts mode)
+CLERK_SECRET_KEY                      # Clerk server key
+NEXT_PUBLIC_CLERK_SIGN_IN_URL=/login  # Clerk sign-in route
+SUPABASE_URL                          # Supabase project URL (database only; shared project)
+SUPABASE_SECRET_KEY                   # New-style sb_secret_ key (replaces service_role) — server-only
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY  # New-style sb_publishable_ key — currently unused (no browser DB access)
+STRIPE_SECRET_KEY                     # Stripe secret key (optional — enables payments)
+STRIPE_WEBHOOK_SECRET                 # Signing secret for /api/stripe/webhook
 ```
+
+Clerk, Supabase, and Stripe are all optional: with Clerk env absent the app runs in "no accounts" mode (all templates free, AI via server key or BYOK, paid buttons disabled, ClerkProvider not mounted). New code must preserve this graceful degradation.
 
 ## Architecture
 
@@ -43,6 +52,16 @@ ADZUNA_APP_KEY    # Adzuna job search API key
 | `proxy` | Server-side proxy for job site HTML scraping (allowlist: indeed.com, linkedin.com, glassdoor.com, wellfound.com; HTTPS-only, redirects rejected, 2 MB response cap). Currently has no client-side consumer |
 
 All six API routes share the per-IP rate limiter in `src/utils/rateLimit.ts`. It keys on `x-real-ip` first, then the RIGHTMOST `x-forwarded-for` hop — never the leftmost hop, which is client-controlled and spoofable. This requires a trusted proxy/platform (e.g. Vercel) that sets those headers; in-memory state is per-instance, so replace with Redis in production. Route scaffolding (429 responses, JSON-body parsing, OpenAI key extraction and error mapping) lives in `src/utils/apiHelpers.ts` — use it, never inline copies. Shared client/server constants: upload rules in `src/config/uploads.ts`, AI input caps in `src/config/apiLimits.ts`. `pdf-parse` is declared as `serverExternalPackages` in `next.config.ts` to prevent bundling issues.
+
+### Monetization (tiers, Stripe, Supabase)
+
+One-time lifetime purchases: Free / Pro $2 / Enterprise $5. **`src/lib/tiers.ts` is the single source of truth** for prices, quotas, template access, and the displayed feature lists — the pricing UI, checkout route, AI gating, and template gating all read from it. House rule: never list a feature in a tier that isn't enforced in code.
+
+- **Auth is Clerk** (`@clerk/nextjs`): `ClerkProvider` is mounted conditionally in `layout.tsx`, `middleware.ts` runs `clerkMiddleware()` only when configured, `/login` renders Clerk's `<SignIn />` (optional catch-all route). Server code gets identity from `auth()`/`currentUser()`. User ids everywhere are Clerk ids (text, `user_...`).
+- **Supabase is database-only**, on a SHARED project: all tables live in the **`resume` schema** (never `public`) — see `supabase/migrations/0001_monetization.sql` (`profiles` created lazily on first server access, `purchases` idempotent on `stripe_session_id`, `ai_usage` + atomic `resume.consume_ai_quota()`). Access is exclusively server-side via `getSupabaseDb()` (`src/lib/supabase/server.ts`), which binds `db.schema = 'resume'` and uses the new-style `sb_secret_` key. There is NO browser Supabase client — the client reads account data from `GET /api/me`. The `resume` schema must be added to the project's Exposed schemas (Dashboard → Settings → API).
+- **Stripe**: `/api/stripe/checkout` (Clerk-authenticated) creates a mode=payment session with inline `price_data` from TIERS (no dashboard products); `/api/stripe/webhook` verifies signatures and fulfills idempotently, upgrading the profile via `highestTier` (never downgrades).
+- **Entitlements** (`src/lib/entitlements.ts`): `getEntitlement()` resolves Clerk user → tier server-side; `consumeAiQuota()` atomically spends monthly quota. Client display/soft-gating uses `useUserTier()` (Clerk `useUser` + `/api/me`); server routes must enforce with `getEntitlement`, never trust the client.
+- **AI route gating** (format-resume, generate-cover-letter): Bearer key present → user's key, no quota (BYOK is free for everyone). No key → anonymous 401, free tier 403, paid tier consumes quota then uses the server key (429 when exhausted). When Clerk is entirely unconfigured, routes fall back to the legacy server-key behavior for dev.
 
 ### OpenAI API Key Flow
 
