@@ -1,7 +1,3 @@
-'use client';
-
-import { motion } from 'framer-motion';
-
 interface TemplatePreviewProps {
   templateId: string;
   className?: string;
@@ -173,12 +169,8 @@ export function TemplatePreview({ templateId, className = "" }: TemplatePreviewP
   };
 
   return (
-    <motion.div 
-      className={`${className}`}
-      whileHover={{ scale: 1.02 }}
-      transition={{ duration: 0.2 }}
-    >
+    <div className={`${className} transition-transform duration-200 hover:scale-[1.02]`}>
       {getPreviewContent()}
-    </motion.div>
+    </div>
   );
 }
