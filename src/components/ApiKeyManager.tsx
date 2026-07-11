@@ -16,12 +16,16 @@ export function ApiKeyManager({ onApiKeySet }: ApiKeyManagerProps) {
   // Default to session-only storage; users opt in to persisting the key
   const [persistent, setPersistent] = useState(false);
   const [hasStoredKey, setHasStoredKey] = useState(false);
+  // Whether a custom key is actually saved in the browser. Distinct from
+  // hasStoredKey because hasApiKey() always returns true in development.
+  const [hasCustomKey, setHasCustomKey] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const keyInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const hasKey = apiKeyManager.hasApiKey();
     setHasStoredKey(hasKey);
+    setHasCustomKey(!!apiKeyManager.getApiKey());
 
     // In production, show modal if no API key is found
     if (apiKeyManager.isProductionMode() && !hasKey) {
@@ -59,6 +63,7 @@ export function ApiKeyManager({ onApiKeySet }: ApiKeyManagerProps) {
 
     apiKeyManager.setApiKey(apiKey, persistent);
     setHasStoredKey(true);
+    setHasCustomKey(true);
     setShowModal(false);
     setApiKey('');
     toast.success('API key saved successfully!');
@@ -68,6 +73,7 @@ export function ApiKeyManager({ onApiKeySet }: ApiKeyManagerProps) {
   const handleRemoveKey = () => {
     apiKeyManager.removeApiKey();
     setHasStoredKey(false);
+    setHasCustomKey(false);
     toast.success('API key removed');
     onApiKeySet?.(false);
   };
@@ -79,7 +85,32 @@ export function ApiKeyManager({ onApiKeySet }: ApiKeyManagerProps) {
   };
 
   if (!apiKeyManager.isProductionMode() && !showModal) {
-    return (
+    // A saved browser key overrides the environment key (it is attached as
+    // the Authorization header), so say so and offer Update/Remove controls.
+    return hasCustomKey ? (
+      <div className="flex items-center justify-between p-4 bg-green-50 border border-green-200 rounded-lg">
+        <div className="flex items-center">
+          <FiCheck className="text-green-500 mr-2" />
+          <span className="text-sm text-green-700">
+            Development mode: Using your saved custom API key
+          </span>
+        </div>
+        <div className="flex space-x-2">
+          <button
+            onClick={() => setShowModal(true)}
+            className="text-sm text-green-600 hover:text-green-800 underline"
+          >
+            Update
+          </button>
+          <button
+            onClick={handleRemoveKey}
+            className="text-sm text-red-600 hover:text-red-800 underline"
+          >
+            Remove
+          </button>
+        </div>
+      </div>
+    ) : (
       <div className="flex items-center justify-between p-4 bg-blue-50 border border-blue-200 rounded-lg">
         <div className="flex items-center">
           <FiInfo className="text-blue-500 mr-2" />

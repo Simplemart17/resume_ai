@@ -2,21 +2,31 @@
 
 import { useCallback, useId, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
+import { MAX_UPLOAD_BYTES, RESUME_ACCEPT } from '@/config/uploads';
 
-const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB, matches the server-side limit
+// ".pdf,.docx,.txt" -> "PDF, DOCX, TXT". Derived from the actual accept
+// prop so the visible copy can never contradict what validation allows.
+function formatsLabelFromAccept(accept: string): string {
+  return accept
+    .split(',')
+    .map(ext => ext.replace('*', '').trim().replace(/^\./, '').toUpperCase())
+    .filter(Boolean)
+    .join(', ');
+}
 
 interface FileUploaderProps {
   onFileSelect: (file: File | null) => void;
   selectedFile: File | null;
-  accept: string;
+  accept?: string;
 }
 
-export function FileUploader({ onFileSelect, selectedFile, accept }: FileUploaderProps) {
+export function FileUploader({ onFileSelect, selectedFile, accept = RESUME_ACCEPT }: FileUploaderProps) {
   const [isDragging, setIsDragging] = useState(false);
   // Depth counter: dragging over child elements fires dragleave on the parent,
   // so a plain boolean flickers. Only reset when we've left the outermost element.
   const dragDepth = useRef(0);
   const inputId = useId();
+  const formatsLabel = formatsLabelFromAccept(accept);
 
   const validateFile = useCallback((file: File): boolean => {
     const allowedExtensions = accept
@@ -27,11 +37,11 @@ export function FileUploader({ onFileSelect, selectedFile, accept }: FileUploade
       file.name.toLowerCase().endsWith(ext)
     );
     if (!hasAllowedExtension) {
-      toast.error('Unsupported file type. Please upload a PDF, DOC, DOCX, or TXT file.');
+      toast.error(`Unsupported file type. Supported formats: ${formatsLabelFromAccept(accept)}.`);
       return false;
     }
-    if (file.size > MAX_FILE_SIZE_BYTES) {
-      toast.error('File is too large. The maximum size is 10 MB.');
+    if (file.size > MAX_UPLOAD_BYTES) {
+      toast.error(`File is too large. The maximum size is ${Math.floor(MAX_UPLOAD_BYTES / (1024 * 1024))} MB.`);
       return false;
     }
     return true;
@@ -125,7 +135,7 @@ export function FileUploader({ onFileSelect, selectedFile, accept }: FileUploade
             : 'Drop your resume here, or click to select'}
         </span>
         <span className="text-sm text-gray-500">
-          Supported formats: PDF, DOC, DOCX, TXT
+          Supported formats: {formatsLabel}
         </span>
       </label>
     </div>

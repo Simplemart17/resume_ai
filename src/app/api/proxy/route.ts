@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import axios, { AxiosError } from 'axios';
 import { checkRateLimit } from '@/utils/rateLimit';
+import { parseJsonBody, rateLimitResponse } from '@/utils/apiHelpers';
 
 // List of allowed domains for proxy requests
 const ALLOWED_DOMAINS = [
@@ -50,25 +51,32 @@ const MAX_RESPONSE_BYTES = 2 * 1024 * 1024;
 
 export async function POST(request: NextRequest) {
   try {
-    const { url } = await request.json();
-    
+    const parsedBody = await parseJsonBody<{ url?: unknown }>(request);
+    if (parsedBody.errorResponse) {
+      return parsedBody.errorResponse;
+    }
+    const { url } = parsedBody.body;
+
     if (!url) {
       return NextResponse.json(
         { error: 'URL is required' },
         { status: 400 }
       );
     }
-    
+
     // Check rate limiting
     const rateLimit = checkRateLimit(request, { limit: 10, windowMs: 60000, bucket: 'proxy' });
     if (!rateLimit.allowed) {
-      return NextResponse.json(
-        { error: 'Rate limit exceeded. Please try again later.' },
-        { status: 429, headers: { 'Retry-After': String(rateLimit.retryAfterSeconds) } }
-      );
+      return rateLimitResponse(rateLimit);
     }
 
     // Validate URL to prevent proxy abuse
+    if (typeof url !== 'string') {
+      return NextResponse.json(
+        { error: 'Invalid URL' },
+        { status: 400 }
+      );
+    }
     let targetUrl: URL;
     try {
       targetUrl = new URL(url);
