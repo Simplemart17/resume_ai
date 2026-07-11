@@ -2,117 +2,19 @@
 
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FiUpload, FiFileText, FiEye, FiSettings, FiUser, FiPlus, FiTrash2, FiEdit3 } from 'react-icons/fi';
-import { FileUploader } from './FileUploader';
+import { FiUpload, FiFileText, FiEye, FiEdit3 } from 'react-icons/fi';
 import { ApiKeyManager } from './ApiKeyManager';
 import { NewResumeTemplates } from './NewResumeTemplates';
 import toast from 'react-hot-toast';
-import Link from 'next/link';
 import type { ResumeData, Experience, Education, PersonalInfo } from '@/types/resume';
-
-// Shape returned by /api/parse-resume in `structured` — differs from ResumeData
-interface ParsedExperience {
-  company?: string;
-  position?: string;
-  startDate?: string;
-  endDate?: string;
-  description?: string;
-}
-
-interface ParsedEducation {
-  institution?: string;
-  degree?: string;
-  field?: string;
-  graduationDate?: string;
-}
-
-interface ParsedResume {
-  personalInfo?: Partial<PersonalInfo>;
-  summary?: string;
-  experience?: ParsedExperience[];
-  education?: ParsedEducation[];
-  skills?: string[];
-}
-
-const MONTH_NAMES: Record<string, string> = {
-  jan: '01', january: '01',
-  feb: '02', february: '02',
-  mar: '03', march: '03',
-  apr: '04', april: '04',
-  may: '05',
-  jun: '06', june: '06',
-  jul: '07', july: '07',
-  aug: '08', august: '08',
-  sep: '09', sept: '09', september: '09',
-  oct: '10', october: '10',
-  nov: '11', november: '11',
-  dec: '12', december: '12'
-};
-
-// Normalize a parsed date toward the YYYY-MM format required by <input type="month">.
-// Only converts confidently ("May 2020", "2020-05", "05/2020"); anything else
-// (e.g. a bare year) returns '' so the user can fill it in rather than getting wrong data.
-function toMonthInputValue(raw?: string): string {
-  if (!raw) return '';
-  const value = raw.trim();
-
-  const isoMatch = value.match(/^(\d{4})-(0[1-9]|1[0-2])$/);
-  if (isoMatch) return value;
-
-  const monthNameMatch = value.match(/^([A-Za-z]+)\.?\s+(\d{4})$/);
-  if (monthNameMatch) {
-    const month = MONTH_NAMES[monthNameMatch[1].toLowerCase()];
-    if (month) return `${monthNameMatch[2]}-${month}`;
-  }
-
-  const numericMatch = value.match(/^(\d{1,2})\/(\d{4})$/);
-  if (numericMatch) {
-    const month = Number(numericMatch[1]);
-    if (month >= 1 && month <= 12) {
-      return `${numericMatch[2]}-${String(month).padStart(2, '0')}`;
-    }
-  }
-
-  return '';
-}
-
-// Map the parse-resume API response into ResumeData: generate ids, derive
-// `current`, and rename education graduationDate -> endDate.
-function mapParsedResume(parsed: ParsedResume): ResumeData {
-  return {
-    personalInfo: {
-      fullName: parsed.personalInfo?.fullName ?? '',
-      email: parsed.personalInfo?.email ?? '',
-      phone: parsed.personalInfo?.phone ?? '',
-      location: parsed.personalInfo?.location ?? '',
-      website: parsed.personalInfo?.website ?? '',
-      linkedin: parsed.personalInfo?.linkedin ?? ''
-    },
-    summary: parsed.summary ?? '',
-    experience: (parsed.experience ?? []).map((exp): Experience => {
-      const current = /present/i.test(exp.endDate ?? '');
-      return {
-        id: crypto.randomUUID(),
-        company: exp.company ?? '',
-        position: exp.position ?? '',
-        startDate: toMonthInputValue(exp.startDate),
-        endDate: current ? '' : toMonthInputValue(exp.endDate),
-        current,
-        description: exp.description ?? ''
-      };
-    }),
-    education: (parsed.education ?? []).map((edu): Education => ({
-      id: crypto.randomUUID(),
-      institution: edu.institution ?? '',
-      degree: edu.degree ?? '',
-      field: edu.field ?? '',
-      startDate: '',
-      endDate: toMonthInputValue(edu.graduationDate),
-      gpa: ''
-    })),
-    skills: parsed.skills ?? []
-  };
-}
+import { mapParsedResume } from './builder/mapParsedResume';
+import { UploadTab } from './builder/UploadTab';
+import { PersonalInfoForm } from './builder/PersonalInfoForm';
+import { SummaryEditor } from './builder/SummaryEditor';
+import { ExperienceEditor } from './builder/ExperienceEditor';
+import { EducationEditor } from './builder/EducationEditor';
+import { SkillsEditor } from './builder/SkillsEditor';
+import { ResumePreview } from './builder/ResumePreview';
 
 export function ResumeBuilder() {
   const [activeTab, setActiveTab] = useState<'upload' | 'build' | 'templates' | 'preview'>('upload');
@@ -179,6 +81,17 @@ export function ResumeBuilder() {
         setLoading(false);
       }
     }
+  };
+
+  const updatePersonalInfo = (field: keyof PersonalInfo, value: string) => {
+    setResumeData(prev => ({
+      ...prev,
+      personalInfo: { ...prev.personalInfo, [field]: value }
+    }));
+  };
+
+  const updateSummary = (value: string) => {
+    setResumeData(prev => ({ ...prev, summary: value }));
   };
 
   const addExperience = () => {
@@ -312,27 +225,11 @@ export function ResumeBuilder() {
                   exit={{ opacity: 0, y: -20 }}
                   transition={{ duration: 0.3 }}
                 >
-                  <div className="max-w-2xl mx-auto">
-                    <h2 className="text-2xl font-semibold text-gray-900 mb-6 text-center">
-                      Upload Your Existing Resume
-                    </h2>
-                    <FileUploader
-                      onFileSelect={handleFileSelect}
-                      selectedFile={resumeFile}
-                      accept=".pdf,.doc,.docx,.txt"
-                    />
-                    {loading && (
-                      <div className="mt-4 text-center">
-                        <div className="inline-flex items-center px-4 py-2 font-semibold leading-6 text-sm shadow rounded-md text-blue-600 bg-blue-100">
-                          <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                          </svg>
-                          Parsing resume...
-                        </div>
-                      </div>
-                    )}
-                  </div>
+                  <UploadTab
+                    onFileSelect={handleFileSelect}
+                    selectedFile={resumeFile}
+                    loading={loading}
+                  />
                 </motion.div>
               )}
 
@@ -349,289 +246,35 @@ export function ResumeBuilder() {
                       Build Your Resume
                     </h2>
 
-                    {/* Personal Information */}
-                    <div className="bg-gray-50 rounded-lg p-6 mb-6">
-                      <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                        <FiUser className="w-5 h-5" />
-                        Personal Information
-                      </h3>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                          <label htmlFor="personal-full-name" className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
-                          <input
-                            id="personal-full-name"
-                            type="text"
-                            value={resumeData.personalInfo.fullName}
-                            onChange={(e) => setResumeData(prev => ({
-                              ...prev,
-                              personalInfo: { ...prev.personalInfo, fullName: e.target.value }
-                            }))}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                            placeholder="John Doe"
-                          />
-                        </div>
-                        <div>
-                          <label htmlFor="personal-email" className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-                          <input
-                            id="personal-email"
-                            type="email"
-                            value={resumeData.personalInfo.email}
-                            onChange={(e) => setResumeData(prev => ({
-                              ...prev,
-                              personalInfo: { ...prev.personalInfo, email: e.target.value }
-                            }))}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                            placeholder="john@example.com"
-                          />
-                        </div>
-                        <div>
-                          <label htmlFor="personal-phone" className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
-                          <input
-                            id="personal-phone"
-                            type="tel"
-                            value={resumeData.personalInfo.phone}
-                            onChange={(e) => setResumeData(prev => ({
-                              ...prev,
-                              personalInfo: { ...prev.personalInfo, phone: e.target.value }
-                            }))}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                            placeholder="+1 (555) 123-4567"
-                          />
-                        </div>
-                        <div>
-                          <label htmlFor="personal-location" className="block text-sm font-medium text-gray-700 mb-1">Location</label>
-                          <input
-                            id="personal-location"
-                            type="text"
-                            value={resumeData.personalInfo.location}
-                            onChange={(e) => setResumeData(prev => ({
-                              ...prev,
-                              personalInfo: { ...prev.personalInfo, location: e.target.value }
-                            }))}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                            placeholder="New York, NY"
-                          />
-                        </div>
-                      </div>
-                    </div>
+                    <PersonalInfoForm
+                      personalInfo={resumeData.personalInfo}
+                      onFieldChange={updatePersonalInfo}
+                    />
 
-                    {/* Professional Summary */}
-                    <div className="bg-gray-50 rounded-lg p-6 mb-6">
-                      <h3 className="text-lg font-semibold text-gray-900 mb-4">Professional Summary</h3>
-                      <textarea
-                        value={resumeData.summary}
-                        onChange={(e) => setResumeData(prev => ({ ...prev, summary: e.target.value }))}
-                        rows={4}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        placeholder="Write a brief summary of your professional background and key achievements..."
-                      />
-                    </div>
+                    <SummaryEditor
+                      summary={resumeData.summary}
+                      onChange={updateSummary}
+                    />
 
-                    {/* Experience Section */}
-                    <div className="bg-gray-50 rounded-lg p-6 mb-6">
-                      <div className="flex justify-between items-center mb-4">
-                        <h3 className="text-lg font-semibold text-gray-900">Work Experience</h3>
-                        <button
-                          onClick={addExperience}
-                          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors"
-                        >
-                          <FiPlus className="w-4 h-4" />
-                          Add Experience
-                        </button>
-                      </div>
+                    <ExperienceEditor
+                      experience={resumeData.experience}
+                      onAdd={addExperience}
+                      onUpdate={updateExperience}
+                      onRemove={removeExperience}
+                    />
 
-                      {resumeData.experience.map((exp, index) => (
-                        <div key={exp.id} className="bg-white rounded-lg p-4 mb-4 border border-gray-200">
-                          <div className="flex justify-between items-start mb-4">
-                            <h4 className="font-medium text-gray-900">Experience {index + 1}</h4>
-                            <button
-                              onClick={() => removeExperience(exp.id)}
-                              aria-label="Remove experience"
-                              className="text-red-600 hover:text-red-800 transition-colors"
-                            >
-                              <FiTrash2 className="w-4 h-4" />
-                            </button>
-                          </div>
+                    <EducationEditor
+                      education={resumeData.education}
+                      onAdd={addEducation}
+                      onUpdate={updateEducation}
+                      onRemove={removeEducation}
+                    />
 
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                            <div>
-                              <label htmlFor={`exp-${exp.id}-position`} className="block text-sm font-medium text-gray-700 mb-1">Job Title</label>
-                              <input
-                                id={`exp-${exp.id}-position`}
-                                type="text"
-                                value={exp.position}
-                                onChange={(e) => updateExperience(exp.id, 'position', e.target.value)}
-                                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                placeholder="Software Engineer"
-                              />
-                            </div>
-                            <div>
-                              <label htmlFor={`exp-${exp.id}-company`} className="block text-sm font-medium text-gray-700 mb-1">Company</label>
-                              <input
-                                id={`exp-${exp.id}-company`}
-                                type="text"
-                                value={exp.company}
-                                onChange={(e) => updateExperience(exp.id, 'company', e.target.value)}
-                                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                placeholder="Tech Company Inc."
-                              />
-                            </div>
-                            <div>
-                              <label htmlFor={`exp-${exp.id}-start-date`} className="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
-                              <input
-                                id={`exp-${exp.id}-start-date`}
-                                type="month"
-                                value={exp.startDate}
-                                onChange={(e) => updateExperience(exp.id, 'startDate', e.target.value)}
-                                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                              />
-                            </div>
-                            <div>
-                              <label htmlFor={`exp-${exp.id}-end-date`} className="block text-sm font-medium text-gray-700 mb-1">End Date</label>
-                              <input
-                                id={`exp-${exp.id}-end-date`}
-                                type="month"
-                                value={exp.endDate}
-                                onChange={(e) => updateExperience(exp.id, 'endDate', e.target.value)}
-                                disabled={exp.current}
-                                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
-                              />
-                              <label className="flex items-center mt-2">
-                                <input
-                                  type="checkbox"
-                                  checked={exp.current}
-                                  onChange={(e) => updateExperience(exp.id, 'current', e.target.checked)}
-                                  className="mr-2"
-                                />
-                                <span className="text-sm text-gray-600">Currently working here</span>
-                              </label>
-                            </div>
-                          </div>
-
-                          <div>
-                            <label htmlFor={`exp-${exp.id}-description`} className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-                            <textarea
-                              id={`exp-${exp.id}-description`}
-                              value={exp.description}
-                              onChange={(e) => updateExperience(exp.id, 'description', e.target.value)}
-                              rows={3}
-                              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                              placeholder="Describe your responsibilities and achievements..."
-                            />
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-
-                    {/* Education Section */}
-                    <div className="bg-gray-50 rounded-lg p-6 mb-6">
-                      <div className="flex justify-between items-center mb-4">
-                        <h3 className="text-lg font-semibold text-gray-900">Education</h3>
-                        <button
-                          onClick={addEducation}
-                          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors"
-                        >
-                          <FiPlus className="w-4 h-4" />
-                          Add Education
-                        </button>
-                      </div>
-
-                      {resumeData.education.map((edu, index) => (
-                        <div key={edu.id} className="bg-white rounded-lg p-4 mb-4 border border-gray-200">
-                          <div className="flex justify-between items-start mb-4">
-                            <h4 className="font-medium text-gray-900">Education {index + 1}</h4>
-                            <button
-                              onClick={() => removeEducation(edu.id)}
-                              aria-label="Remove education"
-                              className="text-red-600 hover:text-red-800 transition-colors"
-                            >
-                              <FiTrash2 className="w-4 h-4" />
-                            </button>
-                          </div>
-
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                              <label htmlFor={`edu-${edu.id}-institution`} className="block text-sm font-medium text-gray-700 mb-1">Institution</label>
-                              <input
-                                id={`edu-${edu.id}-institution`}
-                                type="text"
-                                value={edu.institution}
-                                onChange={(e) => updateEducation(edu.id, 'institution', e.target.value)}
-                                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                placeholder="University Name"
-                              />
-                            </div>
-                            <div>
-                              <label htmlFor={`edu-${edu.id}-degree`} className="block text-sm font-medium text-gray-700 mb-1">Degree</label>
-                              <input
-                                id={`edu-${edu.id}-degree`}
-                                type="text"
-                                value={edu.degree}
-                                onChange={(e) => updateEducation(edu.id, 'degree', e.target.value)}
-                                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                placeholder="Bachelor of Science"
-                              />
-                            </div>
-                            <div>
-                              <label htmlFor={`edu-${edu.id}-field`} className="block text-sm font-medium text-gray-700 mb-1">Field of Study</label>
-                              <input
-                                id={`edu-${edu.id}-field`}
-                                type="text"
-                                value={edu.field}
-                                onChange={(e) => updateEducation(edu.id, 'field', e.target.value)}
-                                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                placeholder="Computer Science"
-                              />
-                            </div>
-                            <div>
-                              <label htmlFor={`edu-${edu.id}-end-date`} className="block text-sm font-medium text-gray-700 mb-1">Graduation Year</label>
-                              <input
-                                id={`edu-${edu.id}-end-date`}
-                                type="month"
-                                value={edu.endDate}
-                                onChange={(e) => updateEducation(edu.id, 'endDate', e.target.value)}
-                                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                              />
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-
-                    {/* Skills Section */}
-                    <div className="bg-gray-50 rounded-lg p-6">
-                      <h3 className="text-lg font-semibold text-gray-900 mb-4">Skills</h3>
-                      <div className="mb-4">
-                        <input
-                          type="text"
-                          placeholder="Add a skill and press Enter"
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                              addSkill(e.currentTarget.value);
-                              e.currentTarget.value = '';
-                            }
-                          }}
-                        />
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        {resumeData.skills.map((skill, index) => (
-                          <span
-                            key={index}
-                            className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm flex items-center gap-2"
-                          >
-                            {skill}
-                            <button
-                              onClick={() => removeSkill(skill)}
-                              aria-label={`Remove skill ${skill}`}
-                              className="text-blue-600 hover:text-blue-800"
-                            >
-                              <FiTrash2 className="w-3 h-3" />
-                            </button>
-                          </span>
-                        ))}
-                      </div>
-                    </div>
+                    <SkillsEditor
+                      skills={resumeData.skills}
+                      onAdd={addSkill}
+                      onRemove={removeSkill}
+                    />
                   </div>
                 </motion.div>
               )}
@@ -661,111 +304,7 @@ export function ResumeBuilder() {
                   exit={{ opacity: 0, y: -20 }}
                   transition={{ duration: 0.3 }}
                 >
-                  <div className="max-w-4xl mx-auto">
-                    <h2 className="text-2xl font-semibold text-gray-900 mb-6 text-center">
-                      Resume Preview
-                    </h2>
-
-                    {resumeData.personalInfo.fullName || resumeText ? (
-                      <div className="bg-white rounded-xl shadow-lg p-8 border">
-                        <div className="prose max-w-none">
-                          {resumeData.personalInfo.fullName ? (
-                            <div>
-                              <h1 className="text-3xl font-bold text-gray-900 mb-2">
-                                {resumeData.personalInfo.fullName}
-                              </h1>
-                              <div className="text-gray-600 mb-6">
-                                {[
-                                  resumeData.personalInfo.email,
-                                  resumeData.personalInfo.phone,
-                                  resumeData.personalInfo.location
-                                ].filter(Boolean).join(' | ')}
-                              </div>
-
-                              {resumeData.summary && (
-                                <div className="mb-6">
-                                  <h2 className="text-xl font-semibold text-gray-900 mb-3">Professional Summary</h2>
-                                  <p className="text-gray-700">{resumeData.summary}</p>
-                                </div>
-                              )}
-
-                              {resumeData.experience.length > 0 && (
-                                <div className="mb-6">
-                                  <h2 className="text-xl font-semibold text-gray-900 mb-3">Experience</h2>
-                                  {resumeData.experience.map((exp) => (
-                                    <div key={exp.id} className="mb-4">
-                                      <h3 className="font-semibold text-gray-900">{exp.position}</h3>
-                                      <p className="text-gray-600">{exp.company}</p>
-                                      <p className="text-sm text-gray-500 mb-2">
-                                        {exp.startDate} - {exp.current ? 'Present' : exp.endDate}
-                                      </p>
-                                      {exp.description && <p className="text-gray-700">{exp.description}</p>}
-                                    </div>
-                                  ))}
-                                </div>
-                              )}
-
-                              {resumeData.education.length > 0 && (
-                                <div className="mb-6">
-                                  <h2 className="text-xl font-semibold text-gray-900 mb-3">Education</h2>
-                                  {resumeData.education.map((edu) => (
-                                    <div key={edu.id} className="mb-3">
-                                      <h3 className="font-semibold text-gray-900">{edu.degree} in {edu.field}</h3>
-                                      <p className="text-gray-600">{edu.institution}</p>
-                                      <p className="text-sm text-gray-500">{edu.endDate}</p>
-                                    </div>
-                                  ))}
-                                </div>
-                              )}
-
-                              {resumeData.skills.length > 0 && (
-                                <div>
-                                  <h2 className="text-xl font-semibold text-gray-900 mb-3">Skills</h2>
-                                  <div className="flex flex-wrap gap-2">
-                                    {resumeData.skills.map((skill, index) => (
-                                      <span key={index} className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm">
-                                        {skill}
-                                      </span>
-                                    ))}
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          ) : (
-                            <div className="whitespace-pre-wrap text-gray-700">{resumeText}</div>
-                          )}
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="bg-gray-50 rounded-lg p-8 text-center">
-                        <FiFileText className="w-16 h-16 mx-auto text-gray-400 mb-4" />
-                        <h3 className="text-lg font-medium text-gray-900 mb-2">
-                          No Resume Content
-                        </h3>
-                        <p className="text-gray-600">
-                          Upload a resume or build one to see the preview here.
-                        </p>
-                      </div>
-                    )}
-
-                    {/* Quick Actions */}
-                    <div className="mt-8 flex justify-center gap-4">
-                      <Link
-                        href="/optimize"
-                        className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-semibold transition-colors duration-200 flex items-center gap-2"
-                      >
-                        <FiSettings className="w-4 h-4" />
-                        AI Optimize
-                      </Link>
-                      <Link
-                        href="/autofill"
-                        className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg font-semibold transition-colors duration-200 flex items-center gap-2"
-                      >
-                        <FiEdit3 className="w-4 h-4" />
-                        Auto-Fill Jobs
-                      </Link>
-                    </div>
-                  </div>
+                  <ResumePreview resumeData={resumeData} resumeText={resumeText} />
                 </motion.div>
               )}
             </AnimatePresence>

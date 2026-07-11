@@ -105,6 +105,61 @@ html {
   animation-delay: 4s;
 }
 
+/* Landing page entrance animations (CSS replacement for framer-motion) */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.animate-fade-up {
+  animation: fadeInUp 0.6s ease-out both;
+}
+
+.animation-delay-200 {
+  animation-delay: 0.2s;
+}
+
+.animation-delay-400 {
+  animation-delay: 0.4s;
+}
+
+.animation-delay-600 {
+  animation-delay: 0.6s;
+}
+
+.animate-modal-overlay {
+  animation: fadeIn 0.2s ease-out both;
+}
+
+.animate-modal-panel {
+  animation: scaleIn 0.2s ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-fade-up,
+  .animate-modal-overlay,
+  .animate-modal-panel,
+  .animate-blob,
+  .animate-fade-in-up {
+    animation: none;
+  }
+}
+
 /* Utility classes */
 .text-shadow {
   text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);

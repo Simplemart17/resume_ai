@@ -24,12 +24,12 @@ ADZUNA_APP_KEY    # Adzuna job search API key
 ## Architecture
 
 **Next.js App Router** project at `src/app/`. Pages are thin wrappers that render a single component:
-- `/` → `LandingPage`
-- `/builder` → `ResumeBuilder` (main resume creation flow)
-- `/optimize` → `ResumeFormatter` (AI-powered ATS optimization)
+- `/` → `LandingPage` (server component; interactive templates modal lives in the `src/components/landing/TemplatesModal.tsx` client island — keep this page free of `'use client'` and framer-motion so it ships minimal JS)
+- `/builder` → `ResumeBuilder` (main resume creation flow; orchestrator owning all state, tab bodies live in `src/components/builder/`)
+- `/optimize` → `ResumeFormatter` (AI-powered ATS optimization; orchestrator owning all state, form/result panels live in `src/components/formatter/`)
 - `/autofill` → `AutoFillApp` (job application auto-fill)
 
-`Navigation` is rendered globally in `src/app/layout.tsx`.
+`Navigation` is rendered globally in `src/app/layout.tsx`. When adding UI to builder/optimize, put new tab bodies or panels in the matching subdirectory and keep state in the orchestrator.
 
 ### API Routes (`src/app/api/`)
 
