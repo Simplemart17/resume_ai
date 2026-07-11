@@ -15,8 +15,8 @@ export function TemplatePreview({ templateId, className = "" }: TemplatePreviewP
           <div className="bg-white p-3 rounded-lg shadow-sm border h-full">
             {/* Header with blue accent */}
             <div className="bg-blue-600 text-white p-2 rounded-t-lg mb-2">
-              <div className="h-3 bg-white bg-opacity-90 rounded mb-1"></div>
-              <div className="h-2 bg-white bg-opacity-70 rounded w-2/3"></div>
+              <div className="h-3 bg-white/90 rounded mb-1"></div>
+              <div className="h-2 bg-white/70 rounded w-2/3"></div>
             </div>
             
             {/* Content sections */}
@@ -89,8 +89,8 @@ export function TemplatePreview({ templateId, className = "" }: TemplatePreviewP
           <div className="bg-white p-3 rounded-lg shadow-sm border h-full">
             {/* Creative header with pink accent */}
             <div className="bg-gradient-to-r from-pink-500 to-orange-500 text-white p-2 rounded-lg mb-2">
-              <div className="h-3 bg-white bg-opacity-90 rounded mb-1"></div>
-              <div className="h-2 bg-white bg-opacity-70 rounded w-2/3"></div>
+              <div className="h-3 bg-white/90 rounded mb-1"></div>
+              <div className="h-2 bg-white/70 rounded w-2/3"></div>
             </div>
             
             {/* Creative layout */}
