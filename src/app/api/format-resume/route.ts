@@ -2,82 +2,17 @@ import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
 import { checkRateLimit } from '@/utils/rateLimit';
 import {
-  getBearerKey,
   openAIErrorResponse,
   parseJsonBody,
   rateLimitResponse,
+  resolveOpenAIKey,
 } from '@/utils/apiHelpers';
 import { MAX_JOB_DESCRIPTION_CHARS, MAX_RESUME_CHARS } from '@/config/apiLimits';
-import { consumeAiQuota, getEntitlement } from '@/lib/entitlements';
-import { isClerkConfigured } from '@/lib/entitlements';
-import { isPaidTier } from '@/lib/tiers';
-
-/**
- * Resolves the OpenAI key this request may use.
- * - BYOK (Authorization: Bearer <key>) is always allowed, free, and unmetered.
- * - Otherwise the SERVER key is gated: signed-in paid tier + monthly quota.
- * - Dev/OSS mode: when Supabase is not configured at all there are no
- *   accounts to gate on, so we keep the legacy behavior and use the server
- *   env key directly, ungated — local dev without accounts keeps working.
- * NOTE: duplicated in generate-cover-letter/route.ts — keep the two in sync.
- */
-async function resolveOpenAIKey(
-  request: NextRequest
-): Promise<{ apiKey: string; errorResponse?: never } | { apiKey?: never; errorResponse: NextResponse }> {
-  const bearerKey = getBearerKey(request);
-  if (bearerKey) {
-    return { apiKey: bearerKey };
-  }
-
-  if (!isClerkConfigured()) {
-    const envKey = process.env.OPENAI_API_KEY;
-    if (envKey) return { apiKey: envKey };
-    return {
-      errorResponse: NextResponse.json({ error: 'OpenAI API key is required' }, { status: 401 }),
-    };
-  }
-
-  const { userId, tier } = await getEntitlement();
-  if (!userId) {
-    return {
-      errorResponse: NextResponse.json(
-        { error: 'Add your own OpenAI API key, or sign in with a Pro or Enterprise plan to use ours.' },
-        { status: 401 }
-      ),
-    };
-  }
-  if (!isPaidTier(tier)) {
-    return {
-      errorResponse: NextResponse.json(
-        { error: 'AI without an API key requires a Pro or Enterprise plan ($2/$5 one-time), or add your own OpenAI API key.' },
-        { status: 403 }
-      ),
-    };
-  }
-
-  const quota = await consumeAiQuota(userId, tier);
-  if (!quota.allowed) {
-    return {
-      errorResponse: NextResponse.json(
-        { error: `You've used all ${quota.quota} included AI operations this month. They reset next month — or add your own OpenAI API key for unlimited use.` },
-        { status: 429 }
-      ),
-    };
-  }
-
-  const envKey = process.env.OPENAI_API_KEY;
-  if (!envKey) {
-    return {
-      errorResponse: NextResponse.json(
-        { error: 'AI is not configured on this server' },
-        { status: 503 }
-      ),
-    };
-  }
-  return { apiKey: envKey };
-}
 
 export async function POST(request: NextRequest) {
+  // Non-null once resolveOpenAIKey consumed a quota op: every failure exit
+  // after that point must refund it so users only pay for delivered results.
+  let refundQuota: (() => Promise<void>) | null = null;
   try {
     // Rate limit before doing any work — this route can spend the server's OpenAI key
     const rateLimit = checkRateLimit(request, { limit: 10, windowMs: 60000, bucket: 'format-resume' });
@@ -119,6 +54,7 @@ export async function POST(request: NextRequest) {
       return keyResult.errorResponse;
     }
     const apiKey = keyResult.apiKey;
+    refundQuota = keyResult.refundQuota;
 
     // Initialize OpenAI client with the provided API key
     const openai = new OpenAI({
@@ -207,6 +143,7 @@ Your task is to analyze and optimize resumes to maximize their match with specif
     });
 
     if (completion.choices[0].finish_reason === 'length') {
+      if (refundQuota) await refundQuota();
       return NextResponse.json(
         { error: 'The resume is too long to optimize in one pass. Please shorten it and try again.' },
         { status: 422 }
@@ -222,6 +159,7 @@ Your task is to analyze and optimize resumes to maximize their match with specif
     try {
       parsed = JSON.parse(content);
     } catch {
+      if (refundQuota) await refundQuota();
       return NextResponse.json(
         { error: 'Failed to parse AI response. Please try again.' },
         { status: 502 }
@@ -230,6 +168,7 @@ Your task is to analyze and optimize resumes to maximize their match with specif
 
     // Validate the shape before responding; normalize missing fields to sane defaults
     if (typeof parsed.optimizedResume !== 'string' || parsed.optimizedResume.length === 0) {
+      if (refundQuota) await refundQuota();
       return NextResponse.json(
         { error: 'AI returned an invalid response. Please try again.' },
         { status: 502 }
@@ -247,6 +186,9 @@ Your task is to analyze and optimize resumes to maximize their match with specif
     return NextResponse.json(response);
   } catch (error) {
     console.error('Error in resume formatting:', error);
+
+    // The OpenAI call failed after quota was spent — give the op back.
+    if (refundQuota) await refundQuota();
 
     const openAIError = openAIErrorResponse(error);
     if (openAIError) {

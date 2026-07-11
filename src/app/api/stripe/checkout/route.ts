@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import Stripe from 'stripe';
 import { auth, currentUser } from '@clerk/nextjs/server';
 import { checkRateLimit } from '@/utils/rateLimit';
 import { parseJsonBody, rateLimitResponse } from '@/utils/apiHelpers';
-import { isClerkConfigured } from '@/lib/entitlements';
+import { isClerkConfigured, isClerkMisconfigured } from '@/lib/entitlements';
+import { getStripe } from '@/lib/stripe';
 import { isPaidTier, isTier, TIERS } from '@/lib/tiers';
 
 /**
@@ -36,6 +36,18 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Half-configured Clerk must NOT be a 401: the client redirects 401s to
+    // /login, and with the publishable key present sign-in appears to work,
+    // so a signed-in user would loop /login → pricing → 401 forever.
+    if (isClerkMisconfigured()) {
+      console.error(
+        'stripe/checkout: exactly one of NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY / CLERK_SECRET_KEY is set'
+      );
+      return NextResponse.json(
+        { error: 'Accounts are misconfigured on this server. Please contact the site operator.' },
+        { status: 503 }
+      );
+    }
     // Purchases must be tied to an account so the webhook knows whose tier
     // to upgrade. Unconfigured Clerk means no accounts — same 401.
     if (!isClerkConfigured()) {
@@ -48,17 +60,19 @@ export async function POST(request: NextRequest) {
     const user = await currentUser();
     const email = user?.primaryEmailAddress?.emailAddress;
 
-    const stripeKey = process.env.STRIPE_SECRET_KEY;
-    if (!stripeKey) {
+    const stripe = getStripe();
+    if (!stripe) {
       return NextResponse.json(
         { error: 'Payments are not configured on this server' },
         { status: 503 }
       );
     }
 
-    // Instantiated per-request so builds/deploys without Stripe env succeed.
-    const stripe = new Stripe(stripeKey);
-    const origin = new URL(request.url).origin;
+    // Behind proxies that don't forward host/proto, request.url can resolve
+    // to an internal address — NEXT_PUBLIC_APP_URL overrides it so Stripe
+    // never redirects buyers to an unreachable origin. On Vercel the
+    // request-derived origin is correct and the override is unnecessary.
+    const origin = process.env.NEXT_PUBLIC_APP_URL || new URL(request.url).origin;
     const tierDef = TIERS[tier];
 
     const session = await stripe.checkout.sessions.create({

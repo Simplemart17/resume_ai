@@ -19,7 +19,6 @@ One-time payments — no subscriptions. Every listed feature is enforced in code
 | PDF downloads | Unlimited | Unlimited | Unlimited |
 | AI with your own OpenAI key | ✅ Unlimited | ✅ Unlimited | ✅ Unlimited |
 | AI on our key (no key needed) | — | 20 ops/month | 100 ops/month |
-| Priority email support | — | — | ✅ |
 
 Without Supabase/Stripe configured (see below), the app runs in a free "no accounts" mode: all templates unlocked, AI via the server key or BYOK.
 
@@ -73,7 +72,7 @@ Your OpenAI key, if you provide one in the app, is stored only in your browser (
 
 ## Deployment
 
-Deploy to [Vercel](https://vercel.com) (recommended — the per-IP rate limiter trusts Vercel's proxy headers): set all env vars in the dashboard, and point your Stripe webhook at the production URL. Other Next.js hosts work too, but must sit behind a trusted proxy that sets `x-real-ip`, and the in-memory rate limiter/cache should be replaced with Redis for multi-instance deployments.
+Deploy to [Vercel](https://vercel.com) (recommended — the per-IP rate limiter trusts Vercel's proxy headers): set all env vars in the dashboard, and point your Stripe webhook at the production URL. Other Next.js hosts work too, but must sit behind a trusted proxy that sets `x-real-ip`, should set `NEXT_PUBLIC_APP_URL` so Stripe redirect URLs use your public origin, and the in-memory rate limiter/cache should be replaced with Redis for multi-instance deployments.
 
 ## Contributing
 
