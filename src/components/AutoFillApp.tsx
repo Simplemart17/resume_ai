@@ -7,6 +7,7 @@ import { FileUploader } from './FileUploader';
 import { JobApplicationFiller } from './JobApplicationFiller';
 import { CopyButton } from './CopyButton';
 import toast from 'react-hot-toast';
+import { RESUME_ACCEPT } from '@/config/uploads';
 
 // Intentionally separate from ResumeData (see CLAUDE.md): this mirrors the
 // parts of the parse-resume API response that this page actually renders.
@@ -43,7 +44,10 @@ export function AutoFillApp() {
         });
 
         if (!response.ok) {
-          throw new Error('Failed to parse resume');
+          // Surface the server's guidance (e.g. "convert .doc to .docx")
+          // instead of a blanket generic message
+          const errorData = await response.json().catch(() => null);
+          throw new Error(errorData?.error || 'Failed to extract resume data. Please try again.');
         }
 
         const data = await response.json();
@@ -68,7 +72,9 @@ export function AutoFillApp() {
         toast.success('Resume data extracted successfully!');
       } catch (error) {
         console.error('Error parsing resume:', error);
-        toast.error('Failed to extract resume data. Please try again.');
+        toast.error(
+          error instanceof Error ? error.message : 'Failed to extract resume data. Please try again.'
+        );
       } finally {
         setLoading(false);
       }
@@ -110,7 +116,7 @@ export function AutoFillApp() {
               <FileUploader
                 onFileSelect={handleFileSelect}
                 selectedFile={resumeFile}
-                accept=".pdf,.doc,.docx,.txt"
+                accept={RESUME_ACCEPT}
               />
               {loading && (
                 <div className="mt-6 text-center">

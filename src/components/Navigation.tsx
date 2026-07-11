@@ -16,6 +16,7 @@ const APP_LINKS = [
 const MARKETING_LINKS = [
   { href: '#features', label: 'Features' },
   { href: '#templates', label: 'Templates' },
+  { href: '#pricing', label: 'Pricing' },
   { href: '/optimize', label: 'AI Optimize' },
   { href: '/autofill', label: 'Auto-Fill' },
 ];

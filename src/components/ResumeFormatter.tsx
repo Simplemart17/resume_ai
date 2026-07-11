@@ -1,12 +1,18 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
+import DOMPurify from 'dompurify';
 import { ApiKeyManager } from './ApiKeyManager';
 import { NewResumeTemplates } from './NewResumeTemplates';
 import { JobApplicationFiller } from './JobApplicationFiller';
 import { motion } from 'framer-motion';
 import { apiKeyManager } from '@/utils/apiKeyManager';
 import toast from 'react-hot-toast';
+import {
+  MAX_RESUME_CHARS,
+  MAX_JOB_DESCRIPTION_CHARS,
+  MAX_TITLE_COMPANY_CHARS,
+} from '@/config/apiLimits';
 import { FormattedResult, FormatterTab } from './formatter/types';
 import { OptimizeForm } from './formatter/OptimizeForm';
 import { ResultTabs } from './formatter/ResultTabs';
@@ -25,7 +31,6 @@ export function ResumeFormatter() {
   const [error, setError] = useState('');
   const [activeTab, setActiveTab] = useState<FormatterTab>('resume');
   const [coverLetter, setCoverLetter] = useState<string>('');
-  const [safeCoverLetter, setSafeCoverLetter] = useState<string>('');
   const [generatingCoverLetter, setGeneratingCoverLetter] = useState(false);
   const [coverLetterError, setCoverLetterError] = useState<string | null>(null);
   const [hasApiKey, setHasApiKey] = useState(false);
@@ -34,29 +39,12 @@ export function ResumeFormatter() {
     setHasApiKey(apiKeyManager.hasApiKey());
   }, []);
 
-  // Sanitize cover letter HTML client-side to prevent XSS
-  useEffect(() => {
-    if (!coverLetter) {
-      setSafeCoverLetter('');
-      return;
-    }
-    import('dompurify')
-      .then(({ default: DOMPurify }) => {
-        setSafeCoverLetter(DOMPurify.sanitize(coverLetter));
-      })
-      .catch(() => {
-        // DOMPurify failed to load — fall back to escaped plain text so the
-        // letter still renders (safely) instead of staying blank
-        setSafeCoverLetter(
-          coverLetter
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;')
-            .replace(/'/g, '&#39;')
-        );
-      });
-  }, [coverLetter]);
+  // Sanitize cover letter HTML client-side to prevent XSS. Derived
+  // synchronously so a new letter can never render with a stale value.
+  const safeCoverLetter = useMemo(
+    () => (coverLetter ? DOMPurify.sanitize(coverLetter) : ''),
+    [coverLetter]
+  );
 
   // Attach the user's key whenever one is set (routes fall back to the server
   // key when the header is absent)
@@ -112,6 +100,19 @@ export function ResumeFormatter() {
       const { text } = await uploadResponse.json();
       setResumeText(text);
 
+      // Pre-flight input caps: fail fast with a specific message instead of
+      // letting the server reject the request with a 413
+      if (text.length > MAX_RESUME_CHARS) {
+        throw new Error(
+          `Your resume is ${text.length.toLocaleString()} characters; the maximum is ${MAX_RESUME_CHARS.toLocaleString()}.`
+        );
+      }
+      if (jobDescription.length > MAX_JOB_DESCRIPTION_CHARS) {
+        throw new Error(
+          `The job description is ${jobDescription.length.toLocaleString()} characters; the maximum is ${MAX_JOB_DESCRIPTION_CHARS.toLocaleString()}.`
+        );
+      }
+
       // Now format the resume, forwarding the user's API key if one is set
       const formatResponse = await fetch('/api/format-resume', {
         method: 'POST',
@@ -120,8 +121,8 @@ export function ResumeFormatter() {
       });
 
       if (!formatResponse.ok) {
-        const errorData = await formatResponse.json();
-        throw new Error(errorData.error || 'Failed to format resume');
+        const errorData = await formatResponse.json().catch(() => null);
+        throw new Error(errorData?.error || 'Failed to format resume');
       }
 
       const data = await formatResponse.json();
@@ -144,21 +145,36 @@ export function ResumeFormatter() {
     setCoverLetterError(null);
 
     try {
+      // Regex-derived fallbacks: trimmed and capped so they can never trip
+      // the server's title/company length limit (HTTP 413)
+      const fallbackJobTitle = jobDescription
+        .match(/(?:position|job title|role):?\s*([^.;\n]+)/i)?.[1]
+        ?.trim()
+        .slice(0, MAX_TITLE_COMPANY_CHARS);
+      const fallbackCompany = jobDescription
+        .match(/\b(?:at|with|for)\s+([^.;\n]+)/i)?.[1]
+        ?.trim()
+        .slice(0, MAX_TITLE_COMPANY_CHARS);
+
       const response = await fetch('/api/generate-cover-letter', {
         method: 'POST',
         headers: buildRequestHeaders(),
         body: JSON.stringify({
-          jobTitle: jobTitle.trim() || jobDescription.match(/(?:position|job title|role):?\s*([^.;\n]+)/i)?.[1] || 'the position',
-          company: company.trim() || jobDescription.match(/(?:at|with|for)\s+([^.;\n]+)/i)?.[1] || 'the company',
+          jobTitle: jobTitle.trim() || fallbackJobTitle || 'the position',
+          company: company.trim() || fallbackCompany || 'the company',
           jobDescription: jobDescription,
           resume: result.optimizedResume
         }),
       });
 
-      const data = await response.json();
+      const data = await response.json().catch(() => null);
 
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to generate cover letter');
+        throw new Error(data?.error || 'Failed to generate cover letter');
+      }
+
+      if (!data?.coverLetter) {
+        throw new Error('Received an unexpected response while generating the cover letter. Please try again.');
       }
 
       setCoverLetter(data.coverLetter);
@@ -223,7 +239,6 @@ export function ResumeFormatter() {
             {activeTab === 'resume' ? (
               <OptimizedResumePanel
                 optimizedResume={result.optimizedResume}
-                coverLetter={coverLetter}
                 safeCoverLetter={safeCoverLetter}
                 coverLetterError={coverLetterError}
               />

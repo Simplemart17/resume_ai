@@ -38,6 +38,22 @@ interface ExtractedInfo {
   education: string;
 }
 
+// Module-level so re-renders of JobApplicationFiller (e.g. typing in the URL
+// input) don't remount InfoField subtrees and wipe CopyButton copied-state.
+function InfoField({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="bg-gray-50 rounded-lg p-4">
+      <div className="flex justify-between items-start mb-2">
+        <label className="text-sm font-medium text-gray-700">{label}</label>
+        <CopyButton text={value} label={label} />
+      </div>
+      <div className="text-gray-900 text-sm bg-white rounded border p-2 min-h-[40px] max-h-32 overflow-y-auto">
+        {value || <span className="text-gray-400">Not found</span>}
+      </div>
+    </div>
+  );
+}
+
 export function JobApplicationFiller({ resumeText, structuredData }: JobApplicationFillerProps) {
   const [jobUrl, setJobUrl] = useState('');
   const [extractedInfo, setExtractedInfo] = useState<ExtractedInfo | null>(null);
@@ -145,18 +161,6 @@ export function JobApplicationFiller({ resumeText, structuredData }: JobApplicat
       toast.error('Failed to copy to clipboard');
     }
   };
-
-  const InfoField = ({ label, value }: { label: string; value: string }) => (
-    <div className="bg-gray-50 rounded-lg p-4">
-      <div className="flex justify-between items-start mb-2">
-        <label className="text-sm font-medium text-gray-700">{label}</label>
-        <CopyButton text={value} label={label} />
-      </div>
-      <div className="text-gray-900 text-sm bg-white rounded border p-2 min-h-[40px] max-h-32 overflow-y-auto">
-        {value || <span className="text-gray-400">Not found</span>}
-      </div>
-    </div>
-  );
 
   return (
     <div className="space-y-6">

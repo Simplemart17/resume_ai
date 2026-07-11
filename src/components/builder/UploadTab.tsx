@@ -1,6 +1,7 @@
 'use client';
 
 import { FileUploader } from '../FileUploader';
+import { RESUME_ACCEPT } from '@/config/uploads';
 
 interface UploadTabProps {
   onFileSelect: (file: File | null) => void;
@@ -17,7 +18,7 @@ export function UploadTab({ onFileSelect, selectedFile, loading }: UploadTabProp
       <FileUploader
         onFileSelect={onFileSelect}
         selectedFile={selectedFile}
-        accept=".pdf,.docx,.txt"
+        accept={RESUME_ACCEPT}
       />
       {loading && (
         <div className="mt-4 text-center">
