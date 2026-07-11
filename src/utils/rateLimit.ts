@@ -28,11 +28,16 @@ const MAX_ENTRIES_PER_BUCKET = 5000;
 const buckets = new Map<string, Map<string, RateLimitEntry>>();
 
 function getClientKey(request: NextRequest): string {
-  // Prefer x-real-ip: it is set by the platform (Vercel, typical nginx configs)
-  // and cannot be forged by the client. Fall back to the RIGHTMOST hop of
-  // x-forwarded-for — proxies APPEND the real client IP, so the rightmost entry
-  // is the one added by the nearest trusted proxy; everything left of it is
-  // client-controlled and must not be trusted as an identity.
+  // TRUST MODEL: x-real-ip and the rightmost x-forwarded-for hop are only
+  // trustworthy when this app runs behind a proxy/platform that sets or
+  // normalizes them (e.g. Vercel, or nginx configured to overwrite them).
+  // Behind such a proxy, x-real-ip is proxy-set, and the rightmost XFF hop is
+  // the one the nearest trusted proxy appended — everything left of it is
+  // client-controlled. On deployments hit DIRECTLY (no proxy), clients can
+  // forge x-real-ip to any value and rotate it to bypass limits, while
+  // header-less clients all collapse into the shared 'unknown' bucket.
+  // Production deployments must therefore sit behind a trusted proxy, or
+  // replace this with Redis keyed on a verified identity (e.g. session/user).
   const realIp = request.headers.get('x-real-ip')?.trim();
   if (realIp) return realIp;
 

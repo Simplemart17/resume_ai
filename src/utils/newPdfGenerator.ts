@@ -1,20 +1,6 @@
 import jsPDF from "jspdf";
 import type { ResumeData } from "@/types/resume";
-
-const MONTH_NAMES = [
-  "Jan",
-  "Feb",
-  "Mar",
-  "Apr",
-  "May",
-  "Jun",
-  "Jul",
-  "Aug",
-  "Sep",
-  "Oct",
-  "Nov",
-  "Dec",
-];
+import { shortMonthName } from "@/utils/date";
 
 export class NewPDFGenerator {
   /** Vertical margin kept clear at the bottom of every page. */
@@ -28,9 +14,9 @@ export class NewPDFGenerator {
     // timezone shift of new Date("2023-05") and "Invalid Date" output.
     const match = /^(\d{4})-(\d{1,2})(?:-\d{1,2})?$/.exec(dateStr.trim());
     if (!match) return dateStr; // e.g. "Present", "May 2020" pass through
-    const monthIndex = parseInt(match[2], 10) - 1;
-    if (monthIndex < 0 || monthIndex > 11) return dateStr;
-    return `${MONTH_NAMES[monthIndex]} ${match[1]}`;
+    const month = shortMonthName(parseInt(match[2], 10) - 1);
+    if (!month) return dateStr;
+    return `${month} ${match[1]}`;
   }
 
   /**
