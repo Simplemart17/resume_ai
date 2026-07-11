@@ -1,4 +1,5 @@
 import type { ResumeData, Experience, Education, PersonalInfo } from '@/types/resume';
+import { monthNumberFromName } from '@/utils/date';
 
 // Shape returned by /api/parse-resume in `structured` — differs from ResumeData
 interface ParsedExperience {
@@ -24,21 +25,6 @@ export interface ParsedResume {
   skills?: string[];
 }
 
-const MONTH_NAMES: Record<string, string> = {
-  jan: '01', january: '01',
-  feb: '02', february: '02',
-  mar: '03', march: '03',
-  apr: '04', april: '04',
-  may: '05',
-  jun: '06', june: '06',
-  jul: '07', july: '07',
-  aug: '08', august: '08',
-  sep: '09', sept: '09', september: '09',
-  oct: '10', october: '10',
-  nov: '11', november: '11',
-  dec: '12', december: '12'
-};
-
 // Normalize a parsed date toward the YYYY-MM format required by <input type="month">.
 // Only converts confidently ("May 2020", "2020-05", "05/2020"); anything else
 // (e.g. a bare year) returns '' so the user can fill it in rather than getting wrong data.
@@ -51,7 +37,7 @@ function toMonthInputValue(raw?: string): string {
 
   const monthNameMatch = value.match(/^([A-Za-z]+)\.?\s+(\d{4})$/);
   if (monthNameMatch) {
-    const month = MONTH_NAMES[monthNameMatch[1].toLowerCase()];
+    const month = monthNumberFromName(monthNameMatch[1]);
     if (month) return `${monthNameMatch[2]}-${month}`;
   }
 

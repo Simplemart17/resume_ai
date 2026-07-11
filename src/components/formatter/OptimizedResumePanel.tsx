@@ -5,14 +5,13 @@ import { CoverLetterPanel } from './CoverLetterPanel';
 
 interface OptimizedResumePanelProps {
   optimizedResume: string;
-  coverLetter: string;
+  /** Sanitized cover-letter HTML (already passed through DOMPurify). */
   safeCoverLetter: string;
   coverLetterError: string | null;
 }
 
 export function OptimizedResumePanel({
   optimizedResume,
-  coverLetter,
   safeCoverLetter,
   coverLetterError,
 }: OptimizedResumePanelProps) {
@@ -54,7 +53,7 @@ export function OptimizedResumePanel({
         </div>
       )}
 
-      {coverLetter && (
+      {safeCoverLetter && (
         <CoverLetterPanel safeCoverLetter={safeCoverLetter} />
       )}
     </div>

@@ -2,6 +2,8 @@
 
 import { FileUploader } from '../FileUploader';
 import { motion } from 'framer-motion';
+import { RESUME_ACCEPT } from '@/config/uploads';
+import { MAX_JOB_DESCRIPTION_CHARS } from '@/config/apiLimits';
 
 interface OptimizeFormProps {
   resumeFile: File | null;
@@ -46,7 +48,7 @@ export function OptimizeForm({
         <FileUploader
           onFileSelect={onFileChange}
           selectedFile={resumeFile}
-          accept=".pdf,.docx,.txt"
+          accept={RESUME_ACCEPT}
         />
         {error && (
           <motion.p
@@ -84,8 +86,14 @@ export function OptimizeForm({
           placeholder="Paste the job description here..."
           value={jobDescription}
           onChange={(e) => onJobDescriptionChange(e.target.value)}
+          maxLength={MAX_JOB_DESCRIPTION_CHARS}
           required
         />
+        {jobDescription.length > MAX_JOB_DESCRIPTION_CHARS * 0.8 && (
+          <p className="mt-1 text-xs text-gray-500 text-right" aria-live="polite">
+            {jobDescription.length.toLocaleString()} / {MAX_JOB_DESCRIPTION_CHARS.toLocaleString()}
+          </p>
+        )}
       </div>
     </div>
 
