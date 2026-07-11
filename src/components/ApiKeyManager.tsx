@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FiKey, FiEye, FiEyeOff, FiCheck, FiInfo } from 'react-icons/fi';
 import { apiKeyManager } from '@/utils/apiKeyManager';
@@ -13,13 +13,19 @@ interface ApiKeyManagerProps {
 export function ApiKeyManager({ onApiKeySet }: ApiKeyManagerProps) {
   const [apiKey, setApiKey] = useState('');
   const [showKey, setShowKey] = useState(false);
-  const [persistent, setPersistent] = useState(true);
+  // Default to session-only storage; users opt in to persisting the key
+  const [persistent, setPersistent] = useState(false);
   const [hasStoredKey, setHasStoredKey] = useState(false);
+  // Whether a custom key is actually saved in the browser. Distinct from
+  // hasStoredKey because hasApiKey() always returns true in development.
+  const [hasCustomKey, setHasCustomKey] = useState(false);
   const [showModal, setShowModal] = useState(false);
+  const keyInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const hasKey = apiKeyManager.hasApiKey();
     setHasStoredKey(hasKey);
+    setHasCustomKey(!!apiKeyManager.getApiKey());
 
     // In production, show modal if no API key is found
     if (apiKeyManager.isProductionMode() && !hasKey) {
@@ -28,6 +34,21 @@ export function ApiKeyManager({ onApiKeySet }: ApiKeyManagerProps) {
 
     onApiKeySet?.(hasKey);
   }, [onApiKeySet]);
+
+  // Modal a11y: focus the key input on open and close on Escape
+  useEffect(() => {
+    if (!showModal) return;
+
+    keyInputRef.current?.focus();
+
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setShowModal(false);
+      }
+    };
+    document.addEventListener('keydown', handleEscape);
+    return () => document.removeEventListener('keydown', handleEscape);
+  }, [showModal]);
 
   const handleSaveKey = () => {
     if (!apiKey.trim()) {
@@ -42,6 +63,7 @@ export function ApiKeyManager({ onApiKeySet }: ApiKeyManagerProps) {
 
     apiKeyManager.setApiKey(apiKey, persistent);
     setHasStoredKey(true);
+    setHasCustomKey(true);
     setShowModal(false);
     setApiKey('');
     toast.success('API key saved successfully!');
@@ -51,18 +73,44 @@ export function ApiKeyManager({ onApiKeySet }: ApiKeyManagerProps) {
   const handleRemoveKey = () => {
     apiKeyManager.removeApiKey();
     setHasStoredKey(false);
+    setHasCustomKey(false);
     toast.success('API key removed');
     onApiKeySet?.(false);
   };
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
+  const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
       handleSaveKey();
     }
   };
 
   if (!apiKeyManager.isProductionMode() && !showModal) {
-    return (
+    // A saved browser key overrides the environment key (it is attached as
+    // the Authorization header), so say so and offer Update/Remove controls.
+    return hasCustomKey ? (
+      <div className="flex items-center justify-between p-4 bg-green-50 border border-green-200 rounded-lg">
+        <div className="flex items-center">
+          <FiCheck className="text-green-500 mr-2" />
+          <span className="text-sm text-green-700">
+            Development mode: Using your saved custom API key
+          </span>
+        </div>
+        <div className="flex space-x-2">
+          <button
+            onClick={() => setShowModal(true)}
+            className="text-sm text-green-600 hover:text-green-800 underline"
+          >
+            Update
+          </button>
+          <button
+            onClick={handleRemoveKey}
+            className="text-sm text-red-600 hover:text-red-800 underline"
+          >
+            Remove
+          </button>
+        </div>
+      </div>
+    ) : (
       <div className="flex items-center justify-between p-4 bg-blue-50 border border-blue-200 rounded-lg">
         <div className="flex items-center">
           <FiInfo className="text-blue-500 mr-2" />
@@ -111,17 +159,20 @@ export function ApiKeyManager({ onApiKeySet }: ApiKeyManagerProps) {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+            className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
           >
             <motion.div
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="api-key-modal-title"
               className="bg-white rounded-xl p-6 max-w-md w-full shadow-2xl"
             >
               <div className="flex items-center mb-4">
                 <FiKey className="text-indigo-600 mr-3 text-xl" />
-                <h2 className="text-xl font-semibold text-gray-900">
+                <h2 id="api-key-modal-title" className="text-xl font-semibold text-gray-900">
                   OpenAI API Key Required
                 </h2>
               </div>
@@ -142,16 +193,18 @@ export function ApiKeyManager({ onApiKeySet }: ApiKeyManagerProps) {
               <div className="space-y-4">
                 <div className="relative">
                   <input
+                    ref={keyInputRef}
                     type={showKey ? 'text' : 'password'}
                     value={apiKey}
                     onChange={(e) => setApiKey(e.target.value)}
-                    onKeyPress={handleKeyPress}
+                    onKeyDown={handleKeyDown}
                     placeholder="sk-..."
                     className="w-full px-4 py-3 pr-12 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
                   />
                   <button
                     type="button"
                     onClick={() => setShowKey(!showKey)}
+                    aria-label={showKey ? 'Hide API key' : 'Show API key'}
                     className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
                   >
                     {showKey ? <FiEyeOff /> : <FiEye />}
@@ -191,7 +244,7 @@ export function ApiKeyManager({ onApiKeySet }: ApiKeyManagerProps) {
 
               <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
                 <p className="text-xs text-yellow-800">
-                  <strong>Privacy:</strong> Your API key is stored locally in your browser and never sent to our servers.
+                  <strong>Privacy:</strong> Your API key is stored only in your browser and sent over HTTPS to our API solely to forward your requests to OpenAI. It is never stored on our servers.
                 </p>
               </div>
             </motion.div>

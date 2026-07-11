@@ -24,39 +24,43 @@ ADZUNA_APP_KEY    # Adzuna job search API key
 ## Architecture
 
 **Next.js App Router** project at `src/app/`. Pages are thin wrappers that render a single component:
-- `/` → `LandingPage`
-- `/builder` → `ResumeBuilder` (main resume creation flow)
-- `/optimize` → `ResumeFormatter` (AI-powered ATS optimization)
+- `/` → `LandingPage` (server component; interactive templates modal lives in the `src/components/landing/TemplatesModal.tsx` client island — keep this page free of `'use client'` and framer-motion so it ships minimal JS)
+- `/builder` → `ResumeBuilder` (main resume creation flow; orchestrator owning all state, tab bodies live in `src/components/builder/`)
+- `/optimize` → `ResumeFormatter` (AI-powered ATS optimization; orchestrator owning all state, form/result panels live in `src/components/formatter/`)
 - `/autofill` → `AutoFillApp` (job application auto-fill)
 
-`Navigation` is rendered globally in `src/app/layout.tsx`.
+`Navigation` is rendered globally in `src/app/layout.tsx`. When adding UI to builder/optimize, put new tab bodies or panels in the matching subdirectory and keep state in the orchestrator.
 
 ### API Routes (`src/app/api/`)
 
 | Route | Purpose |
 |---|---|
-| `parse-resume` | Server-side file parsing: PDF via `pdf-parse`, DOCX via `mammoth`, TXT raw |
-| `format-resume` | OpenAI ATS optimization — returns `{ optimizedResume, matchScore, changes, matchingSkills, missingSkills }` |
-| `generate-cover-letter` | OpenAI cover letter generation using `gpt-4-turbo-preview` |
-| `search-jobs` | Adzuna API job search with in-memory caching (1hr TTL) and rate limiting (5 req/min/IP) |
+| `parse-resume` | Server-side file parsing: PDF via `pdf-parse`, DOCX via `mammoth`, TXT raw. Legacy `.doc` is rejected with 400 |
+| `format-resume` | OpenAI ATS optimization (`gpt-4o`) — returns `{ optimizedResume, matchScore, changes, matchingSkills, missingSkills }`; response shape is validated server-side |
+| `generate-cover-letter` | OpenAI cover letter generation (`gpt-4o-mini`); accepts optional `resume` in the body and grounds the letter in it when present |
+| `search-jobs` | Adzuna API job search with in-memory caching (1hr TTL). Currently has no client-side consumer |
 | `upload-resume` | File upload handler |
-| `proxy` | Server-side proxy for job site HTML scraping (allowlist: indeed.com, linkedin.com, glassdoor.com, wellfound.com) |
+| `proxy` | Server-side proxy for job site HTML scraping (allowlist: indeed.com, linkedin.com, glassdoor.com, wellfound.com; HTTPS-only, redirects rejected, 2 MB response cap). Currently has no client-side consumer |
 
-`pdf-parse` is declared as `serverExternalPackages` in `next.config.ts` to prevent bundling issues.
+All six API routes share the per-IP rate limiter in `src/utils/rateLimit.ts`. It keys on `x-real-ip` first, then the RIGHTMOST `x-forwarded-for` hop — never the leftmost hop, which is client-controlled and spoofable. This requires a trusted proxy/platform (e.g. Vercel) that sets those headers; in-memory state is per-instance, so replace with Redis in production. Route scaffolding (429 responses, JSON-body parsing, OpenAI key extraction and error mapping) lives in `src/utils/apiHelpers.ts` — use it, never inline copies. Shared client/server constants: upload rules in `src/config/uploads.ts`, AI input caps in `src/config/apiLimits.ts`. `pdf-parse` is declared as `serverExternalPackages` in `next.config.ts` to prevent bundling issues.
 
 ### OpenAI API Key Flow
 
-AI API routes accept the key via `Authorization: Bearer <key>` header, falling back to `process.env.OPENAI_API_KEY`. On the client side, `ApiKeyManager` (`src/utils/apiKeyManager.ts`) is a singleton that persists the key in `localStorage` (or `sessionStorage`). In development, `hasApiKey()` always returns `true`.
+AI API routes accept the key via `Authorization: Bearer <key>` header, falling back to `process.env.OPENAI_API_KEY`. On the client side, `ApiKeyManager` (`src/utils/apiKeyManager.ts`) is a singleton that persists the key in `sessionStorage` by default (`localStorage` only when the user opts into persistence). The client attaches the header whenever a key is set, in any environment. In development, `hasApiKey()` always returns `true`.
 
 ### PDF Generation
 
 `NewPDFGenerator` (`src/utils/newPdfGenerator.ts`) uses `jsPDF` to produce PDFs from structured `ResumeData`. Supported template IDs: `modern-professional`, `classic-traditional`, `creative-designer`, `executive-premium`. The creative and executive templates reuse the classic/modern layout internally.
 
-Templates are rendered in `NewResumeTemplates` (`src/components/NewResumeTemplates.tsx`), which accepts optional `resumeData` (defaults to empty) and optional `selectedTemplate` (defaults to `'modern-professional'`). The `custom` template ID shows an informative message and falls back to modern-professional.
+Templates are rendered in `NewResumeTemplates` (`src/components/NewResumeTemplates.tsx`), which accepts optional `resumeData` (defaults to empty) and optional `selectedTemplate` (defaults to `'modern-professional'`). The `custom` template ID shows an informative message and falls back to modern-professional. Template display metadata (name, description, color, features) lives in `src/config/templates.ts` — import `TEMPLATES` from there; do not redeclare per component.
+
+### Branding
+
+The logo lives in `src/components/Logo.tsx` (`Logo` = mark + wordmark, `LogoMark` = mark only) and the favicon is `src/app/icon.svg` (Next.js file convention). Both draw the same mark: a rounded blue→purple gradient tile with a résumé silhouette and gold spark. Brand gradient tokens: `#2563EB` → `#9333EA` (Tailwind `blue-600`/`purple-600`).
 
 ### Job Search Caching
 
-`src/utils/cache.ts` exports a singleton `JobCache` instance. Cache keys are `"adzuna:<keywords>:<location>"`. In production, the comment notes Redis should replace this in-memory store.
+`src/utils/cache.ts` exports a singleton `JobCache` instance. Cache keys are `"adzuna:<keywords>:<location>"` (normalized to trimmed lowercase). The store is a `Map` capped at 500 entries with LRU eviction and lazy expiry. In production, Redis should replace this in-memory store.
 
 ### Shared Resume Types
 
@@ -64,8 +68,8 @@ Templates are rendered in `NewResumeTemplates` (`src/components/NewResumeTemplat
 
 ### Navigation
 
-`Navigation` (`src/components/Navigation.tsx`) renders marketing links (Features, Templates, AI Optimize, Auto-Fill, Get Started) when `pathname === '/'` and app links (Resume Builder / AI Optimizer / Auto-Fill) with active-state highlight on all other pages. Do not add inline sub-navigation bars to page components.
+`Navigation` (`src/components/Navigation.tsx`) renders marketing links (Features, Templates, Pricing, AI Optimize, Auto-Fill, Get Started) when `pathname === '/'` and app links (Resume Builder / AI Optimizer / Auto-Fill) with active-state highlight on all other pages. Desktop and mobile menus render from the same `MARKETING_LINKS` array. Do not add inline sub-navigation bars to page components.
 
 ### File Upload Validation
 
-Both `upload-resume` and `parse-resume` routes enforce a 10 MB file size limit (HTTP 413). Supported types: PDF, DOCX, TXT.
+Both `upload-resume` and `parse-resume` delegate validation and text extraction to `src/utils/extractResumeText.ts`, driven by the shared rules in `src/config/uploads.ts` (10 MB limit → HTTP 413; PDF, DOCX, TXT; legacy `.doc` rejected with a convert-to-docx message). Client uploaders import the same config for their `accept` lists and pre-validation — never hardcode file rules in a component or route.

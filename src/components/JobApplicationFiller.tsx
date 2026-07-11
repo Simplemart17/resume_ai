@@ -2,11 +2,30 @@
 
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { FiLink, FiCopy, FiCheck, FiExternalLink, FiInfo } from 'react-icons/fi';
+import { FiLink, FiExternalLink, FiInfo } from 'react-icons/fi';
 import toast from 'react-hot-toast';
+import { CopyButton } from './CopyButton';
+
+/**
+ * Structured resume data already extracted upstream (e.g. by the
+ * parse-resume API). When provided, it takes precedence over the
+ * regex-based extraction from raw resume text.
+ */
+export interface StructuredResumeData {
+  personalInfo: {
+    fullName: string;
+    email: string;
+    phone: string;
+    location: string;
+  };
+  skills: string[];
+}
 
 interface JobApplicationFillerProps {
+  /** Raw (plain) resume text, used for regex-based extraction. */
   resumeText: string;
+  /** Optional structured data; skips regex re-extraction for the fields it covers. */
+  structuredData?: StructuredResumeData | null;
 }
 
 interface ExtractedInfo {
@@ -19,10 +38,25 @@ interface ExtractedInfo {
   education: string;
 }
 
-export function JobApplicationFiller({ resumeText }: JobApplicationFillerProps) {
+// Module-level so re-renders of JobApplicationFiller (e.g. typing in the URL
+// input) don't remount InfoField subtrees and wipe CopyButton copied-state.
+function InfoField({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="bg-gray-50 rounded-lg p-4">
+      <div className="flex justify-between items-start mb-2">
+        <label className="text-sm font-medium text-gray-700">{label}</label>
+        <CopyButton text={value} label={label} />
+      </div>
+      <div className="text-gray-900 text-sm bg-white rounded border p-2 min-h-[40px] max-h-32 overflow-y-auto">
+        {value || <span className="text-gray-400">Not found</span>}
+      </div>
+    </div>
+  );
+}
+
+export function JobApplicationFiller({ resumeText, structuredData }: JobApplicationFillerProps) {
   const [jobUrl, setJobUrl] = useState('');
   const [extractedInfo, setExtractedInfo] = useState<ExtractedInfo | null>(null);
-  const [copiedField, setCopiedField] = useState<string | null>(null);
 
   const extractResumeInfo = (text: string): ExtractedInfo => {
     // Basic extraction logic - in a real app, this would be more sophisticated
@@ -74,26 +108,28 @@ export function JobApplicationFiller({ resumeText }: JobApplicationFillerProps) 
   };
 
   const handleAnalyzeResume = () => {
-    if (!resumeText.trim()) {
+    if (!resumeText.trim() && !structuredData) {
       toast.error('No resume content to analyze');
       return;
     }
 
-    const info = extractResumeInfo(resumeText);
+    // Regex extraction from raw text; structured data (when provided)
+    // overrides the fields it covers so we don't re-derive them.
+    const regexInfo = extractResumeInfo(resumeText);
+    const info: ExtractedInfo = structuredData
+      ? {
+          name: structuredData.personalInfo.fullName || regexInfo.name,
+          email: structuredData.personalInfo.email || regexInfo.email,
+          phone: structuredData.personalInfo.phone || regexInfo.phone,
+          address: structuredData.personalInfo.location || regexInfo.address,
+          experience: regexInfo.experience,
+          skills: structuredData.skills.length > 0 ? structuredData.skills : regexInfo.skills,
+          education: regexInfo.education,
+        }
+      : regexInfo;
+
     setExtractedInfo(info);
     toast.success('Resume information extracted successfully!');
-  };
-
-  const copyToClipboard = async (text: string, fieldName: string) => {
-    try {
-      await navigator.clipboard.writeText(text);
-      setCopiedField(fieldName);
-      toast.success(`${fieldName} copied to clipboard!`);
-
-      setTimeout(() => setCopiedField(null), 2000);
-    } catch {
-      toast.error('Failed to copy to clipboard');
-    }
   };
 
   const isValidJobUrl = (url: string): boolean => {
@@ -109,33 +145,22 @@ export function JobApplicationFiller({ resumeText }: JobApplicationFillerProps) 
         'linkedin.com'
       ];
 
-      return validDomains.some(domain => urlObj.hostname.includes(domain));
+      return validDomains.some(
+        domain => urlObj.hostname === domain || urlObj.hostname.endsWith('.' + domain)
+      );
     } catch {
       return false;
     }
   };
 
-  const InfoField = ({ label, value }: { label: string; value: string; fieldName: string }) => (
-    <div className="bg-gray-50 rounded-lg p-4">
-      <div className="flex justify-between items-start mb-2">
-        <label className="text-sm font-medium text-gray-700">{label}</label>
-        <button
-          onClick={() => copyToClipboard(value, label)}
-          className="text-gray-400 hover:text-gray-600 transition-colors"
-          title={`Copy ${label}`}
-        >
-          {copiedField === label ? (
-            <FiCheck className="text-green-500" size={16} />
-          ) : (
-            <FiCopy size={16} />
-          )}
-        </button>
-      </div>
-      <div className="text-gray-900 text-sm bg-white rounded border p-2 min-h-[40px] max-h-32 overflow-y-auto">
-        {value || <span className="text-gray-400">Not found</span>}
-      </div>
-    </div>
-  );
+  const copySkill = async (skill: string) => {
+    try {
+      await navigator.clipboard.writeText(skill);
+      toast.success(`${skill} copied to clipboard!`);
+    } catch {
+      toast.error('Failed to copy to clipboard');
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -182,7 +207,7 @@ export function JobApplicationFiller({ resumeText }: JobApplicationFillerProps) 
           <h3 className="text-lg font-semibold text-gray-900">Resume Information</h3>
           <button
             onClick={handleAnalyzeResume}
-            disabled={!resumeText.trim()}
+            disabled={!resumeText.trim() && !structuredData}
             className="flex items-center px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             <FiLink className="mr-2" size={16} />
@@ -196,29 +221,20 @@ export function JobApplicationFiller({ resumeText }: JobApplicationFillerProps) 
             animate={{ opacity: 1, y: 0 }}
             className="grid grid-cols-1 md:grid-cols-2 gap-4"
           >
-            <InfoField label="Full Name" value={extractedInfo.name} fieldName="name" />
-            <InfoField label="Email" value={extractedInfo.email} fieldName="email" />
-            <InfoField label="Phone" value={extractedInfo.phone} fieldName="phone" />
-            <InfoField label="Address" value={extractedInfo.address} fieldName="address" />
+            <InfoField label="Full Name" value={extractedInfo.name} />
+            <InfoField label="Email" value={extractedInfo.email} />
+            <InfoField label="Phone" value={extractedInfo.phone} />
+            <InfoField label="Address" value={extractedInfo.address} />
 
             <div className="md:col-span-2">
-              <InfoField label="Work Experience Summary" value={extractedInfo.experience} fieldName="experience" />
+              <InfoField label="Work Experience Summary" value={extractedInfo.experience} />
             </div>
 
             <div className="md:col-span-2">
               <div className="bg-gray-50 rounded-lg p-4">
                 <div className="flex justify-between items-start mb-2">
                   <label className="text-sm font-medium text-gray-700">Skills</label>
-                  <button
-                    onClick={() => copyToClipboard(extractedInfo.skills.join(', '), 'Skills')}
-                    className="text-gray-400 hover:text-gray-600 transition-colors"
-                  >
-                    {copiedField === 'Skills' ? (
-                      <FiCheck className="text-green-500" size={16} />
-                    ) : (
-                      <FiCopy size={16} />
-                    )}
-                  </button>
+                  <CopyButton text={extractedInfo.skills.join(', ')} label="Skills" />
                 </div>
                 <div className="flex flex-wrap gap-2">
                   {extractedInfo.skills.length > 0 ? (
@@ -226,7 +242,7 @@ export function JobApplicationFiller({ resumeText }: JobApplicationFillerProps) 
                       <span
                         key={index}
                         className="px-3 py-1 bg-indigo-100 text-indigo-800 text-sm rounded-full cursor-pointer hover:bg-indigo-200 transition-colors"
-                        onClick={() => copyToClipboard(skill, `Skill: ${skill}`)}
+                        onClick={() => copySkill(skill)}
                       >
                         {skill}
                       </span>
@@ -239,7 +255,7 @@ export function JobApplicationFiller({ resumeText }: JobApplicationFillerProps) 
             </div>
 
             <div className="md:col-span-2">
-              <InfoField label="Education" value={extractedInfo.education} fieldName="education" />
+              <InfoField label="Education" value={extractedInfo.education} />
             </div>
           </motion.div>
         ) : (

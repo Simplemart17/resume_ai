@@ -29,7 +29,9 @@ export class ApiKeyManager {
     return this.apiKey;
   }
 
-  public setApiKey(key: string, persistent: boolean = true): void {
+  // Defaults to sessionStorage (persistent = false) so API keys are not kept
+  // in localStorage unless the caller explicitly opts in.
+  public setApiKey(key: string, persistent: boolean = false): void {
     this.apiKey = key;
     if (typeof window !== 'undefined') {
       if (persistent) {

@@ -1,10 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FiDownload, FiEye, FiCheck, FiUpload, FiFileText } from 'react-icons/fi';
 import { NewPDFGenerator } from '@/utils/newPdfGenerator';
 import { TemplatePreview } from './TemplatePreview';
+import { TEMPLATES } from '@/config/templates';
 import toast from 'react-hot-toast';
 import type { ResumeData } from '@/types/resume';
 
@@ -23,41 +24,6 @@ interface NewResumeTemplatesProps {
   selectedTemplate?: string;
 }
 
-const templates = [
-  {
-    id: 'modern-professional',
-    name: 'Modern Professional',
-    description: 'Clean, contemporary design with accent colors perfect for tech and business roles',
-    preview: '/templates/modern-preview.jpg',
-    color: 'from-blue-500 to-purple-600',
-    features: ['Clean Layout', 'Modern Typography', 'Accent Colors', 'ATS-Friendly']
-  },
-  {
-    id: 'classic-traditional',
-    name: 'Classic Traditional',
-    description: 'Traditional black and white format ideal for conservative industries',
-    preview: '/templates/classic-preview.jpg',
-    color: 'from-gray-600 to-gray-800',
-    features: ['Traditional Format', 'Conservative Style', 'Black & White', 'Professional']
-  },
-  {
-    id: 'creative-designer',
-    name: 'Creative Designer',
-    description: 'Bold, colorful design great for creative professionals and designers',
-    preview: '/templates/creative-preview.jpg',
-    color: 'from-pink-500 to-orange-500',
-    features: ['Bold Design', 'Creative Layout', 'Color Accents', 'Visual Appeal']
-  },
-  {
-    id: 'executive-premium',
-    name: 'Executive Premium',
-    description: 'Sophisticated layout perfect for senior-level positions and executives',
-    preview: '/templates/executive-preview.jpg',
-    color: 'from-indigo-600 to-blue-700',
-    features: ['Executive Style', 'Sophisticated', 'Premium Look', 'Leadership Focus']
-  }
-];
-
 export function NewResumeTemplates({
   resumeText,
   resumeData = EMPTY_RESUME_DATA,
@@ -68,9 +34,19 @@ export function NewResumeTemplates({
   const [previewTemplate, setPreviewTemplate] = useState<string | null>(null);
   const [customTemplate, setCustomTemplate] = useState<File | null>(null);
 
+  // Close the preview modal on Escape
+  useEffect(() => {
+    if (!previewTemplate) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setPreviewTemplate(null);
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [previewTemplate]);
+
   const handleTemplateSelect = (templateId: string) => {
     onTemplateSelect?.(templateId);
-    toast.success(`${templates.find(t => t.id === templateId)?.name} template selected!`);
+    toast.success(`${TEMPLATES.find(t => t.id === templateId)?.name} template selected!`);
   };
 
   const handleDownloadPDF = async (templateId: string) => {
@@ -174,7 +150,7 @@ export function NewResumeTemplates({
 
       {/* Template Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        {templates.map((template, index) => (
+        {TEMPLATES.map((template, index) => (
           <motion.div
             key={template.id}
             initial={{ opacity: 0, y: 20 }}
@@ -262,7 +238,7 @@ export function NewResumeTemplates({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+            className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
             onClick={() => setPreviewTemplate(null)}
           >
             <motion.div
@@ -271,15 +247,19 @@ export function NewResumeTemplates({
               exit={{ scale: 0.9, opacity: 0 }}
               className="bg-white rounded-xl max-w-4xl max-h-[90vh] overflow-auto"
               onClick={(e) => e.stopPropagation()}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="template-preview-title"
             >
               <div className="p-6">
                 <div className="flex justify-between items-center mb-4">
-                  <h3 className="text-xl font-semibold text-gray-900">
-                    Template Preview: {templates.find(t => t.id === previewTemplate)?.name}
+                  <h3 id="template-preview-title" className="text-xl font-semibold text-gray-900">
+                    Template Preview: {TEMPLATES.find(t => t.id === previewTemplate)?.name}
                   </h3>
                   <button
                     onClick={() => setPreviewTemplate(null)}
                     className="text-gray-500 hover:text-gray-700"
+                    aria-label="Close"
                   >
                     <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -297,7 +277,7 @@ export function NewResumeTemplates({
                   <div className="bg-gray-50 rounded-lg p-6">
                     <h4 className="font-semibold text-gray-900 mb-3">Template Features:</h4>
                     <div className="grid grid-cols-2 gap-4">
-                      {templates.find(t => t.id === previewTemplate)?.features.map((feature, idx) => (
+                      {TEMPLATES.find(t => t.id === previewTemplate)?.features.map((feature, idx) => (
                         <div key={idx} className="flex items-center gap-2">
                           <FiCheck className="w-4 h-4 text-green-600" />
                           <span className="text-gray-700">{feature}</span>
@@ -336,7 +316,7 @@ export function NewResumeTemplates({
 
       {/* Loading Overlay */}
       {isGenerating && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-8 text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
             <p className="text-gray-600">Generating your resume PDF...</p>

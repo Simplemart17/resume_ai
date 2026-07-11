@@ -1,22 +1,374 @@
 import jsPDF from "jspdf";
 import type { ResumeData } from "@/types/resume";
+import { shortMonthName } from "@/utils/date";
 
 export class NewPDFGenerator {
+  /** Vertical margin kept clear at the bottom of every page. */
+  private static readonly BOTTOM_MARGIN = 20;
+  /** Y position where content resumes on continuation pages. */
+  private static readonly CONTINUATION_TOP = 20;
+
   private static formatDate(dateStr: string): string {
     if (!dateStr) return "";
-    const date = new Date(dateStr);
-    return date.toLocaleDateString("en-US", {
-      month: "short",
-      year: "numeric",
+    // Parse "YYYY-MM" (or "YYYY-MM-DD") manually to avoid the UTC-midnight
+    // timezone shift of new Date("2023-05") and "Invalid Date" output.
+    const match = /^(\d{4})-(\d{1,2})(?:-\d{1,2})?$/.exec(dateStr.trim());
+    if (!match) return dateStr; // e.g. "Present", "May 2020" pass through
+    const month = shortMonthName(parseInt(match[2], 10) - 1);
+    if (!month) return dateStr;
+    return `${month} ${match[1]}`;
+  }
+
+  /**
+   * Joins two formatted dates with " - ", omitting the dash when either side
+   * is empty (education entries only carry a graduation date, for example).
+   */
+  private static formatDateRange(startDate: string, endDate: string): string {
+    return [this.formatDate(startDate), this.formatDate(endDate)]
+      .filter(Boolean)
+      .join(" - ");
+  }
+
+  /**
+   * Returns a y position guaranteed to have `neededHeight` mm of room above
+   * the bottom margin, adding a new page (and resetting to the top margin)
+   * when the current page would overflow.
+   */
+  private static ensureSpace(
+    pdf: jsPDF,
+    yPos: number,
+    neededHeight: number
+  ): number {
+    const pageHeight = pdf.internal.pageSize.getHeight();
+    if (yPos + neededHeight > pageHeight - this.BOTTOM_MARGIN) {
+      pdf.addPage();
+      return this.CONTINUATION_TOP;
+    }
+    return yPos;
+  }
+
+  /**
+   * Renders pre-wrapped lines one by one so long blocks paginate instead of
+   * running off the bottom of the page. Returns the y position after the
+   * last line.
+   */
+  private static renderLines(
+    pdf: jsPDF,
+    lines: string[],
+    x: number,
+    yPos: number,
+    lineHeight: number
+  ): number {
+    lines.forEach((line) => {
+      yPos = this.ensureSpace(pdf, yPos, lineHeight);
+      pdf.text(line, x, yPos);
+      yPos += lineHeight;
     });
+    return yPos;
+  }
+
+  /**
+   * Shared body used by the modern-professional and executive-premium
+   * templates. Renders summary, experience, education and skills starting at
+   * `startY`, paginating as needed.
+   */
+  private static generateModernBody(
+    pdf: jsPDF,
+    data: ResumeData,
+    startY: number,
+    margin: number
+  ): void {
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    let yPos = startY;
+
+    pdf.setTextColor(0, 0, 0);
+
+    // Summary
+    if (data.summary) {
+      yPos = this.ensureSpace(pdf, yPos, 20);
+      pdf.setFontSize(14);
+      pdf.setFont("helvetica", "bold");
+      pdf.text("PROFESSIONAL SUMMARY", margin, yPos);
+      yPos += 10;
+
+      pdf.setFontSize(10);
+      pdf.setFont("helvetica", "normal");
+      const summaryLines: string[] = pdf.splitTextToSize(
+        data.summary,
+        pageWidth - 2 * margin
+      );
+      yPos = this.renderLines(pdf, summaryLines, margin, yPos, 5);
+      yPos += 10;
+    }
+
+    // Experience
+    if (data.experience.length > 0) {
+      yPos = this.ensureSpace(pdf, yPos, 35);
+      pdf.setFontSize(14);
+      pdf.setFont("helvetica", "bold");
+      pdf.text("EXPERIENCE", margin, yPos);
+      yPos += 15;
+
+      data.experience.forEach((exp) => {
+        yPos = this.ensureSpace(pdf, yPos, 20);
+        pdf.setFontSize(12);
+        pdf.setFont("helvetica", "bold");
+        pdf.text(exp.position, margin, yPos);
+
+        pdf.setFont("helvetica", "normal");
+        const dateRange = `${this.formatDate(exp.startDate)} - ${
+          exp.current ? "Present" : this.formatDate(exp.endDate)
+        }`;
+        pdf.text(dateRange, pageWidth - margin, yPos, { align: "right" });
+        yPos += 6;
+
+        pdf.setFontSize(11);
+        pdf.setFont("helvetica", "italic");
+        pdf.text(exp.company, margin, yPos);
+        yPos += 8;
+
+        if (exp.description) {
+          pdf.setFontSize(10);
+          pdf.setFont("helvetica", "normal");
+          const descLines: string[] = pdf.splitTextToSize(
+            exp.description,
+            pageWidth - 2 * margin
+          );
+          yPos = this.renderLines(pdf, descLines, margin, yPos, 4);
+          yPos += 8;
+        }
+      });
+    }
+
+    // Education
+    if (data.education.length > 0) {
+      yPos = this.ensureSpace(pdf, yPos, 35);
+      pdf.setFontSize(14);
+      pdf.setFont("helvetica", "bold");
+      pdf.text("EDUCATION", margin, yPos);
+      yPos += 15;
+
+      data.education.forEach((edu) => {
+        yPos = this.ensureSpace(pdf, yPos, 16);
+        pdf.setFontSize(12);
+        pdf.setFont("helvetica", "bold");
+        pdf.text(`${edu.degree} in ${edu.field}`, margin, yPos);
+
+        const dateRange = this.formatDateRange(edu.startDate, edu.endDate);
+        pdf.text(dateRange, pageWidth - margin, yPos, { align: "right" });
+        yPos += 6;
+
+        pdf.setFontSize(11);
+        pdf.setFont("helvetica", "normal");
+        pdf.text(edu.institution, margin, yPos);
+        yPos += 10;
+      });
+    }
+
+    // Skills
+    if (data.skills.length > 0) {
+      yPos = this.ensureSpace(pdf, yPos, 20);
+      pdf.setFontSize(14);
+      pdf.setFont("helvetica", "bold");
+      pdf.text("SKILLS", margin, yPos);
+      yPos += 10;
+
+      pdf.setFontSize(10);
+      pdf.setFont("helvetica", "normal");
+      const skillsText = data.skills.join(" • ");
+      const skillsLines: string[] = pdf.splitTextToSize(
+        skillsText,
+        pageWidth - 2 * margin
+      );
+      this.renderLines(pdf, skillsLines, margin, yPos, 5);
+    }
+  }
+
+  /**
+   * Shared body used by the classic-traditional and creative-designer
+   * templates. Renders summary, experience, then education/skills in two
+   * columns starting at `startY`, paginating as needed.
+   */
+  private static generateClassicBody(
+    pdf: jsPDF,
+    data: ResumeData,
+    startY: number,
+    margin: number
+  ): void {
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+    let yPos = startY;
+
+    pdf.setTextColor(0, 0, 0);
+
+    // Summary
+    if (data.summary) {
+      yPos = this.ensureSpace(pdf, yPos, 18);
+      pdf.setFontSize(12);
+      pdf.setFont("helvetica", "bold");
+      pdf.text("SUMMARY", margin, yPos);
+      yPos += 8;
+
+      pdf.setFontSize(10);
+      pdf.setFont("helvetica", "normal");
+      const summaryLines: string[] = pdf.splitTextToSize(
+        data.summary,
+        pageWidth - 2 * margin
+      );
+      yPos = this.renderLines(pdf, summaryLines, margin, yPos, 5);
+      yPos += 15;
+    }
+
+    // Experience
+    if (data.experience.length > 0) {
+      yPos = this.ensureSpace(pdf, yPos, 30);
+      pdf.setFontSize(12);
+      pdf.setFont("helvetica", "bold");
+      pdf.text("EXPERIENCE", margin, yPos);
+      yPos += 12;
+
+      data.experience.forEach((exp) => {
+        yPos = this.ensureSpace(pdf, yPos, 18);
+        pdf.setFontSize(11);
+        pdf.setFont("helvetica", "bold");
+        pdf.text(exp.position, margin, yPos);
+
+        const dateRange = `${this.formatDate(exp.startDate)} - ${
+          exp.current ? "Present" : this.formatDate(exp.endDate)
+        }`;
+        pdf.text(dateRange, pageWidth - margin, yPos, { align: "right" });
+        yPos += 6;
+
+        pdf.setFont("helvetica", "normal");
+        pdf.text(exp.company, margin, yPos);
+        yPos += 8;
+
+        if (exp.description) {
+          pdf.setFontSize(10);
+          const descLines: string[] = pdf.splitTextToSize(
+            exp.description,
+            pageWidth - 2 * margin
+          );
+          yPos = this.renderLines(pdf, descLines, margin, yPos, 4);
+          yPos += 10;
+        }
+      });
+    }
+
+    // Education & Skills in two columns
+    if (data.education.length === 0 && data.skills.length === 0) return;
+
+    const leftColWidth = (pageWidth - 3 * margin) / 2;
+    const rightColStart = margin + leftColWidth + margin;
+
+    // Wrap each skill to the column width up front so the keep-together
+    // estimate and the rendering agree on line counts. Wrapping must happen
+    // at the same font size the lines are rendered with (10pt normal).
+    pdf.setFontSize(10);
+    pdf.setFont("helvetica", "normal");
+    const skillLines: string[][] = data.skills.map(
+      (skill) => pdf.splitTextToSize(`• ${skill}`, leftColWidth) as string[]
+    );
+    const totalSkillLines = skillLines.reduce(
+      (sum, lines) => sum + lines.length,
+      0
+    );
+
+    // Try to keep the two-column section together: if the taller column
+    // does not fit on the current page (but would fit on a fresh one),
+    // start the section on a new page.
+    const eduHeight =
+      data.education.length > 0 ? 12 + data.education.length * 20 : 0;
+    const skillsHeight = data.skills.length > 0 ? 12 + totalSkillLines * 5 : 0;
+    const maxUsable =
+      pageHeight - this.BOTTOM_MARGIN - this.CONTINUATION_TOP;
+    yPos = this.ensureSpace(
+      pdf,
+      yPos,
+      Math.min(Math.max(eduHeight, skillsHeight), maxUsable)
+    );
+
+    const startPage = pdf.getCurrentPageInfo().pageNumber;
+
+    // Advances within a column, moving to the next page (creating it if it
+    // does not exist yet) when the column would overflow.
+    const columnBreak = (
+      y: number,
+      page: number,
+      needed: number
+    ): { y: number; page: number } => {
+      if (y + needed > pageHeight - this.BOTTOM_MARGIN) {
+        const nextPage = page + 1;
+        if (nextPage > pdf.getNumberOfPages()) {
+          pdf.addPage();
+        }
+        pdf.setPage(nextPage);
+        return { y: this.CONTINUATION_TOP, page: nextPage };
+      }
+      return { y, page };
+    };
+
+    // Education (left column)
+    let leftYPos = yPos;
+    let leftPage = startPage;
+    if (data.education.length > 0) {
+      pdf.setFontSize(12);
+      pdf.setFont("helvetica", "bold");
+      pdf.text("EDUCATION", margin, leftYPos);
+      leftYPos += 12;
+
+      data.education.forEach((edu) => {
+        const pos = columnBreak(leftYPos, leftPage, 20);
+        leftYPos = pos.y;
+        leftPage = pos.page;
+
+        pdf.setFontSize(10);
+        pdf.setFont("helvetica", "bold");
+        pdf.text(`${edu.degree}`, margin, leftYPos);
+        leftYPos += 5;
+
+        pdf.setFont("helvetica", "normal");
+        pdf.text(edu.institution, margin, leftYPos);
+        leftYPos += 5;
+
+        pdf.text(this.formatDateRange(edu.startDate, edu.endDate), margin, leftYPos);
+        leftYPos += 10;
+      });
+    }
+
+    // Skills (right column) — starts back on the page where the columns began
+    let rightYPos = yPos;
+    let rightPage = startPage;
+    if (data.skills.length > 0) {
+      pdf.setPage(startPage);
+      pdf.setFontSize(12);
+      pdf.setFont("helvetica", "bold");
+      pdf.text("SKILLS", rightColStart, rightYPos);
+      rightYPos += 12;
+
+      pdf.setFontSize(10);
+      pdf.setFont("helvetica", "normal");
+      skillLines.forEach((lines) => {
+        lines.forEach((line) => {
+          const pos = columnBreak(rightYPos, rightPage, 5);
+          rightYPos = pos.y;
+          rightPage = pos.page;
+
+          pdf.text(line, rightColStart, rightYPos);
+          rightYPos += 5;
+        });
+      });
+    }
+
+    // Leave the document positioned on the last page used
+    pdf.setPage(Math.max(leftPage, rightPage));
   }
 
   private static generateModernTemplate(pdf: jsPDF, data: ResumeData): void {
     const pageWidth = pdf.internal.pageSize.getWidth();
     const margin = 20;
-    let yPos = 30;
 
-    // Header with name and contact
+    // Header with name and contact (blue)
     pdf.setFillColor(59, 130, 246); // Blue
     pdf.rect(0, 0, pageWidth, 60, "F");
 
@@ -36,104 +388,7 @@ export class NewPDFGenerator {
       .join(" | ");
     pdf.text(contactInfo, margin, 50);
 
-    yPos = 80;
-    pdf.setTextColor(0, 0, 0);
-
-    // Summary
-    if (data.summary) {
-      pdf.setFontSize(14);
-      pdf.setFont("helvetica", "bold");
-      pdf.text("PROFESSIONAL SUMMARY", margin, yPos);
-      yPos += 10;
-
-      pdf.setFontSize(10);
-      pdf.setFont("helvetica", "normal");
-      const summaryLines = pdf.splitTextToSize(
-        data.summary,
-        pageWidth - 2 * margin
-      );
-      pdf.text(summaryLines, margin, yPos);
-      yPos += summaryLines.length * 5 + 10;
-    }
-
-    // Experience
-    if (data.experience.length > 0) {
-      pdf.setFontSize(14);
-      pdf.setFont("helvetica", "bold");
-      pdf.text("EXPERIENCE", margin, yPos);
-      yPos += 15;
-
-      data.experience.forEach((exp) => {
-        pdf.setFontSize(12);
-        pdf.setFont("helvetica", "bold");
-        pdf.text(exp.position, margin, yPos);
-
-        pdf.setFont("helvetica", "normal");
-        const dateRange = `${this.formatDate(exp.startDate)} - ${
-          exp.current ? "Present" : this.formatDate(exp.endDate)
-        }`;
-        pdf.text(dateRange, pageWidth - margin - 50, yPos);
-        yPos += 6;
-
-        pdf.setFontSize(11);
-        pdf.setFont("helvetica", "italic");
-        pdf.text(exp.company, margin, yPos);
-        yPos += 8;
-
-        if (exp.description) {
-          pdf.setFontSize(10);
-          pdf.setFont("helvetica", "normal");
-          const descLines = pdf.splitTextToSize(
-            exp.description,
-            pageWidth - 2 * margin
-          );
-          pdf.text(descLines, margin, yPos);
-          yPos += descLines.length * 4 + 8;
-        }
-      });
-    }
-
-    // Education
-    if (data.education.length > 0) {
-      pdf.setFontSize(14);
-      pdf.setFont("helvetica", "bold");
-      pdf.text("EDUCATION", margin, yPos);
-      yPos += 15;
-
-      data.education.forEach((edu) => {
-        pdf.setFontSize(12);
-        pdf.setFont("helvetica", "bold");
-        pdf.text(`${edu.degree} in ${edu.field}`, margin, yPos);
-
-        const dateRange = `${this.formatDate(
-          edu.startDate
-        )} - ${this.formatDate(edu.endDate)}`;
-        pdf.text(dateRange, pageWidth - margin - 50, yPos);
-        yPos += 6;
-
-        pdf.setFontSize(11);
-        pdf.setFont("helvetica", "normal");
-        pdf.text(edu.institution, margin, yPos);
-        yPos += 10;
-      });
-    }
-
-    // Skills
-    if (data.skills.length > 0) {
-      pdf.setFontSize(14);
-      pdf.setFont("helvetica", "bold");
-      pdf.text("SKILLS", margin, yPos);
-      yPos += 10;
-
-      pdf.setFontSize(10);
-      pdf.setFont("helvetica", "normal");
-      const skillsText = data.skills.join(" • ");
-      const skillsLines = pdf.splitTextToSize(
-        skillsText,
-        pageWidth - 2 * margin
-      );
-      pdf.text(skillsLines, margin, yPos);
-    }
+    this.generateModernBody(pdf, data, 80, margin);
   }
 
   private static generateClassicTemplate(pdf: jsPDF, data: ResumeData): void {
@@ -141,7 +396,7 @@ export class NewPDFGenerator {
     const margin = 20;
     let yPos = 30;
 
-    // Header
+    // Plain centered header
     pdf.setFontSize(20);
     pdf.setFont("helvetica", "bold");
     pdf.text(data.personalInfo.fullName || "Your Name", pageWidth / 2, yPos, {
@@ -165,110 +420,14 @@ export class NewPDFGenerator {
     pdf.line(margin, yPos, pageWidth - margin, yPos);
     yPos += 15;
 
-    // Summary
-    if (data.summary) {
-      pdf.setFontSize(12);
-      pdf.setFont("helvetica", "bold");
-      pdf.text("SUMMARY", margin, yPos);
-      yPos += 8;
-
-      pdf.setFontSize(10);
-      pdf.setFont("helvetica", "normal");
-      const summaryLines = pdf.splitTextToSize(
-        data.summary,
-        pageWidth - 2 * margin
-      );
-      pdf.text(summaryLines, margin, yPos);
-      yPos += summaryLines.length * 5 + 15;
-    }
-
-    // Experience
-    if (data.experience.length > 0) {
-      pdf.setFontSize(12);
-      pdf.setFont("helvetica", "bold");
-      pdf.text("EXPERIENCE", margin, yPos);
-      yPos += 12;
-
-      data.experience.forEach((exp) => {
-        pdf.setFontSize(11);
-        pdf.setFont("helvetica", "bold");
-        pdf.text(exp.position, margin, yPos);
-
-        const dateRange = `${this.formatDate(exp.startDate)} - ${
-          exp.current ? "Present" : this.formatDate(exp.endDate)
-        }`;
-        pdf.text(dateRange, pageWidth - margin - 40, yPos);
-        yPos += 6;
-
-        pdf.setFont("helvetica", "normal");
-        pdf.text(exp.company, margin, yPos);
-        yPos += 8;
-
-        if (exp.description) {
-          pdf.setFontSize(10);
-          const descLines = pdf.splitTextToSize(
-            exp.description,
-            pageWidth - 2 * margin
-          );
-          pdf.text(descLines, margin, yPos);
-          yPos += descLines.length * 4 + 10;
-        }
-      });
-    }
-
-    // Education & Skills in two columns
-    const leftColWidth = (pageWidth - 3 * margin) / 2;
-    const rightColStart = margin + leftColWidth + margin;
-    let leftYPos = yPos;
-    let rightYPos = yPos;
-
-    // Education (left column)
-    if (data.education.length > 0) {
-      pdf.setFontSize(12);
-      pdf.setFont("helvetica", "bold");
-      pdf.text("EDUCATION", margin, leftYPos);
-      leftYPos += 12;
-
-      data.education.forEach((edu) => {
-        pdf.setFontSize(10);
-        pdf.setFont("helvetica", "bold");
-        pdf.text(`${edu.degree}`, margin, leftYPos);
-        leftYPos += 5;
-
-        pdf.setFont("helvetica", "normal");
-        pdf.text(edu.institution, margin, leftYPos);
-        leftYPos += 5;
-
-        pdf.text(
-          `${this.formatDate(edu.startDate)} - ${this.formatDate(edu.endDate)}`,
-          margin,
-          leftYPos
-        );
-        leftYPos += 10;
-      });
-    }
-
-    // Skills (right column)
-    if (data.skills.length > 0) {
-      pdf.setFontSize(12);
-      pdf.setFont("helvetica", "bold");
-      pdf.text("SKILLS", rightColStart, rightYPos);
-      rightYPos += 12;
-
-      pdf.setFontSize(10);
-      pdf.setFont("helvetica", "normal");
-      data.skills.forEach((skill) => {
-        pdf.text(`• ${skill}`, rightColStart, rightYPos);
-        rightYPos += 5;
-      });
-    }
+    this.generateClassicBody(pdf, data, yPos, margin);
   }
 
   private static generateCreativeTemplate(pdf: jsPDF, data: ResumeData): void {
     const pageWidth = pdf.internal.pageSize.getWidth();
     const margin = 20;
 
-    // Creative header with colored background
+    // Creative header with colored background (pink)
     pdf.setFillColor(236, 72, 153); // Pink
     pdf.rect(0, 0, pageWidth, 70, "F");
 
@@ -288,10 +447,8 @@ export class NewPDFGenerator {
       .join(" • ");
     pdf.text(contactInfo, margin, 55);
 
-    pdf.setTextColor(0, 0, 0);
-
-    // Rest of the content with creative styling
-    this.generateClassicTemplate(pdf, data); // Reuse classic layout but with creative header
+    // Classic-style body, starting below the creative header
+    this.generateClassicBody(pdf, data, 85, margin);
   }
 
   private static generateExecutiveTemplate(pdf: jsPDF, data: ResumeData): void {
@@ -322,8 +479,8 @@ export class NewPDFGenerator {
     pdf.line(margin, yPos, pageWidth - margin, yPos);
     yPos += 20;
 
-    // Use modern template layout with executive styling
-    this.generateModernTemplate(pdf, data);
+    // Modern-style body, starting below the executive header
+    this.generateModernBody(pdf, data, yPos, margin);
   }
 
   public static async generatePDF(
@@ -339,8 +496,9 @@ export class NewPDFGenerator {
       if (!resumeData.personalInfo.fullName && resumeText) {
         pdf.setFontSize(12);
         pdf.setFont("helvetica", "normal");
-        const lines = pdf.splitTextToSize(resumeText, 170);
-        pdf.text(lines, 20, 20);
+        const lines: string[] = pdf.splitTextToSize(resumeText, 170);
+        const lineHeight = pdf.getLineHeight() / pdf.internal.scaleFactor;
+        this.renderLines(pdf, lines, 20, 20, lineHeight);
       } else {
         // Generate based on template
         switch (templateId) {

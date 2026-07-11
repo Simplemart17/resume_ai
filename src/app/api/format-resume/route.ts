@@ -1,15 +1,51 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
+import { checkRateLimit } from '@/utils/rateLimit';
+import {
+  getOpenAIKey,
+  openAIErrorResponse,
+  parseJsonBody,
+  rateLimitResponse,
+} from '@/utils/apiHelpers';
+import { MAX_JOB_DESCRIPTION_CHARS, MAX_RESUME_CHARS } from '@/config/apiLimits';
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
-    const { resume, jobDescription } = await request.json();
+    // Rate limit before doing any work — this route can spend the server's OpenAI key
+    const rateLimit = checkRateLimit(request, { limit: 10, windowMs: 60000, bucket: 'format-resume' });
+    if (!rateLimit.allowed) {
+      return rateLimitResponse(rateLimit);
+    }
 
+    const parsedBody = await parseJsonBody<{ resume?: unknown; jobDescription?: unknown }>(request);
+    if (parsedBody.errorResponse) {
+      return parsedBody.errorResponse;
+    }
+    const { resume, jobDescription } = parsedBody.body;
 
+    if (!resume || typeof resume !== 'string' || !jobDescription || typeof jobDescription !== 'string') {
+      return NextResponse.json(
+        { error: 'Resume and job description are required' },
+        { status: 400 }
+      );
+    }
+
+    if (resume.length > MAX_RESUME_CHARS) {
+      return NextResponse.json(
+        { error: `Resume is too long. Maximum is ${MAX_RESUME_CHARS.toLocaleString()} characters.` },
+        { status: 413 }
+      );
+    }
+
+    if (jobDescription.length > MAX_JOB_DESCRIPTION_CHARS) {
+      return NextResponse.json(
+        { error: `Job description is too long. Maximum is ${MAX_JOB_DESCRIPTION_CHARS.toLocaleString()} characters.` },
+        { status: 413 }
+      );
+    }
 
     // Get API key from Authorization header or environment
-    const authHeader = request.headers.get('authorization');
-    const apiKey = authHeader?.replace('Bearer ', '') || process.env.OPENAI_API_KEY;
+    const apiKey = getOpenAIKey(request);
     if (!apiKey) {
       return NextResponse.json(
         { error: 'OpenAI API key is required' },
@@ -21,13 +57,6 @@ export async function POST(request: Request) {
     const openai = new OpenAI({
       apiKey: apiKey,
     });
-
-    if (!resume || !jobDescription) {
-      return NextResponse.json(
-        { error: 'Resume and job description are required' },
-        { status: 400 }
-      );
-    }
 
     const systemPrompt = `You are an expert ATS (Applicant Tracking System) specialist and professional resume writer with deep knowledge of:
 - Modern ATS algorithms and keyword optimization
@@ -104,42 +133,61 @@ Your task is to analyze and optimize resumes to maximize their match with specif
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt }
       ],
-      // model: "gpt-4o",
-      model: "gpt-3.5-turbo",
+      model: "gpt-4o",
       response_format: { type: "json_object" },
       temperature: 0.7,
+      max_tokens: 4096,
     });
+
+    if (completion.choices[0].finish_reason === 'length') {
+      return NextResponse.json(
+        { error: 'The resume is too long to optimize in one pass. Please shorten it and try again.' },
+        { status: 422 }
+      );
+    }
 
     const content = completion.choices[0].message.content;
     if (!content) {
       throw new Error('No response from AI model');
     }
 
-    const response = JSON.parse(content);
+    let parsed: Record<string, unknown>;
+    try {
+      parsed = JSON.parse(content);
+    } catch {
+      return NextResponse.json(
+        { error: 'Failed to parse AI response. Please try again.' },
+        { status: 502 }
+      );
+    }
+
+    // Validate the shape before responding; normalize missing fields to sane defaults
+    if (typeof parsed.optimizedResume !== 'string' || parsed.optimizedResume.length === 0) {
+      return NextResponse.json(
+        { error: 'AI returned an invalid response. Please try again.' },
+        { status: 502 }
+      );
+    }
+
+    const response = {
+      optimizedResume: parsed.optimizedResume,
+      matchScore: typeof parsed.matchScore === 'number' ? parsed.matchScore : 0,
+      changes: Array.isArray(parsed.changes) ? parsed.changes : [],
+      matchingSkills: Array.isArray(parsed.matchingSkills) ? parsed.matchingSkills : [],
+      missingSkills: Array.isArray(parsed.missingSkills) ? parsed.missingSkills : [],
+    };
 
     return NextResponse.json(response);
   } catch (error) {
     console.error('Error in resume formatting:', error);
 
-    // Provide more specific error messages
-    let errorMessage = 'Failed to format resume';
-
-    if (error instanceof Error) {
-      if (error.message.includes('API key')) {
-        errorMessage = 'Invalid or missing OpenAI API key';
-      } else if (error.message.includes('quota')) {
-        errorMessage = 'OpenAI API quota exceeded. Please check your billing.';
-      } else if (error.message.includes('rate limit')) {
-        errorMessage = 'Rate limit exceeded. Please try again in a moment.';
-      } else if (error.message.includes('JSON')) {
-        errorMessage = 'Failed to parse AI response. Please try again.';
-      } else {
-        errorMessage = `AI processing error: ${error.message}`;
-      }
+    const openAIError = openAIErrorResponse(error);
+    if (openAIError) {
+      return openAIError;
     }
 
     return NextResponse.json(
-      { error: errorMessage },
+      { error: 'Failed to format resume' },
       { status: 500 }
     );
   }

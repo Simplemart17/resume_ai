@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import axios from 'axios';
 import jobCache from '@/utils/cache';
 import { JOB_API } from '@/config/jobApis';
+import { checkRateLimit } from '@/utils/rateLimit';
+import { parseJsonBody, rateLimitResponse } from '@/utils/apiHelpers';
 
 // Define the interface for job postings
 interface JobPosting {
@@ -15,15 +17,15 @@ interface JobPosting {
 
 // Adzuna API response types
 interface AdzunaJob {
-  title: string;
-  company: { display_name: string };
-  location: { display_name: string; area: string[] };
-  description: string;
-  redirect_url: string;
-  created: string;
+  title?: string;
+  company?: { display_name?: string };
+  location?: { display_name?: string; area?: string[] };
+  description?: string;
+  redirect_url?: string;
+  created?: string;
   salary_min?: number;
   salary_max?: number;
-  category: { label: string };
+  category?: { label?: string };
 }
 
 interface AdzunaResponse {
@@ -31,47 +33,18 @@ interface AdzunaResponse {
   count: number;
 }
 
-// In-memory rate limiting store
-const rateLimitStore: Record<string, { count: number, timestamp: number }> = {};
-
-// Clear expired rate limit entries every hour
-setInterval(() => {
-  const now = Date.now();
-  Object.keys(rateLimitStore).forEach(key => {
-    if (now - rateLimitStore[key].timestamp > 3600000) {
-      delete rateLimitStore[key];
-    }
-  });
-}, 3600000);
-
-// Check if the user has exceeded rate limits
-function checkRateLimit(ip: string): boolean {
-  const now = Date.now();
-  
-  if (rateLimitStore[ip] && (now - rateLimitStore[ip].timestamp) < 60000) {
-    if (rateLimitStore[ip].count >= 5) {
-      return true;
-    }
-    rateLimitStore[ip].count += 1;
-  } else {
-    rateLimitStore[ip] = { count: 1, timestamp: now };
-  }
-  
-  return false;
-}
-
 // Function to normalize Adzuna job data
 function normalizeJobData(data: AdzunaResponse): JobPosting[] {
   return data.results.map(job => ({
-    title: job.title,
-    company: job.company.display_name,
-    location: job.location.display_name,
-    description: job.description,
-    url: job.redirect_url,
-    date: new Date(job.created).toLocaleDateString(),
+    title: job.title ?? 'Untitled position',
+    company: job.company?.display_name ?? 'Unknown company',
+    location: job.location?.display_name ?? 'Location not specified',
+    description: job.description ?? '',
+    url: job.redirect_url ?? '',
+    date: job.created ? new Date(job.created).toLocaleDateString() : '',
     // Additional fields available but not used in current interface:
     // salary_range: job.salary_min && job.salary_max ? `$${job.salary_min.toLocaleString()} - $${job.salary_max.toLocaleString()}` : undefined,
-    // category: job.category.label
+    // category: job.category?.label
   }));
 }
 
@@ -93,59 +66,74 @@ async function fetchJobs(keywords: string, location: string): Promise<JobPosting
 
     return normalizeJobData(response.data);
   } catch (error) {
-    console.error('Error fetching from Adzuna API:', error);
+    if (axios.isAxiosError(error)) {
+      console.error(
+        `Error fetching from Adzuna API (status: ${error.response?.status ?? 'no response'}):`,
+        error.message
+      );
+    } else {
+      console.error('Error fetching from Adzuna API:', error);
+    }
     throw new Error('Failed to fetch jobs. Please try again later.');
   }
 }
 
 export async function POST(request: NextRequest) {
   try {
-    const { keywords, location } = await request.json();
-    
-    if (!keywords) {
+    const parsedBody = await parseJsonBody<{ keywords?: unknown; location?: unknown }>(request);
+    if (parsedBody.errorResponse) {
+      return parsedBody.errorResponse;
+    }
+    const { keywords, location } = parsedBody.body;
+
+    if (!keywords || typeof keywords !== 'string') {
       return NextResponse.json(
         { error: 'Keywords are required' },
         { status: 400 }
       );
     }
-    
+
     // Check rate limiting
-    const clientIp = request.headers.get('x-forwarded-for') || 'unknown';
-    if (checkRateLimit(clientIp)) {
+    const rateLimit = checkRateLimit(request, { limit: 5, windowMs: 60000, bucket: 'search-jobs' });
+    if (!rateLimit.allowed) {
+      return rateLimitResponse(rateLimit);
+    }
+
+    // Fail fast when the server is missing Adzuna credentials
+    if (!process.env.ADZUNA_APP_ID || !process.env.ADZUNA_APP_KEY) {
       return NextResponse.json(
-        { error: 'Rate limit exceeded. Please try again later.' },
-        { status: 429 }
+        { error: 'Job search is not configured on this server' },
+        { status: 500 }
       );
     }
-    
+
+    const searchLocation = typeof location === 'string' ? location : '';
+
     // Check cache first
-    const cacheKey = jobCache.generateKey('adzuna', keywords, location || '');
+    const cacheKey = jobCache.generateKey('adzuna', keywords, searchLocation);
     const cachedJobs = jobCache.get(cacheKey) as JobPosting[] | null;
-    
+
     if (cachedJobs) {
       console.log(`Returning cached results for ${keywords}`);
-      return NextResponse.json({ 
+      return NextResponse.json({
         jobs: cachedJobs,
         source: 'Adzuna (cached)'
       });
     }
-    
+
     try {
       // Fetch jobs using Adzuna API
       console.log(`Searching for ${keywords} jobs...`);
-      const jobs = await fetchJobs(keywords, location);
-      
-      if (jobs.length === 0) {
-        return NextResponse.json(
-          { error: 'No jobs found. Try different keywords or location.' },
-          { status: 404 }
-        );
+      const jobs = await fetchJobs(keywords, searchLocation);
+
+      // Zero results is a valid outcome — return 200 with an empty list, but
+      // don't cache it: a transient empty upstream response would otherwise
+      // negative-cache this search for the full 1-hour TTL.
+      if (jobs.length > 0) {
+        jobCache.set(cacheKey, jobs);
       }
-      
-      // Cache the results
-      jobCache.set(cacheKey, jobs);
-      
-      return NextResponse.json({ 
+
+      return NextResponse.json({
         jobs,
         source: 'Adzuna'
       });

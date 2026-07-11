@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import axios, { AxiosError } from 'axios';
+import { checkRateLimit } from '@/utils/rateLimit';
+import { parseJsonBody, rateLimitResponse } from '@/utils/apiHelpers';
 
 // List of allowed domains for proxy requests
 const ALLOWED_DOMAINS = [
@@ -41,79 +43,58 @@ const SITE_HEADERS: Record<string, Record<string, string>> = {
     'Upgrade-Insecure-Requests': '1',
     'Pragma': 'no-cache',
     'Cache-Control': 'no-cache'
-  },
-  'monster.com': {
-    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
-    'Accept-Language': 'en-US,en;q=0.5',
-    'Accept-Encoding': 'gzip, deflate, br',
-    'DNT': '1',
-    'Sec-Fetch-Dest': 'document',
-    'Sec-Fetch-Mode': 'navigate',
-    'Sec-Fetch-Site': 'none'
-  },
-  'ziprecruiter.com': {
-    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
-    'Accept-Language': 'en-US,en;q=0.5',
-    'Accept-Encoding': 'gzip, deflate, br',
-    'DNT': '1',
-    'Sec-Fetch-Dest': 'document',
-    'Sec-Fetch-Mode': 'navigate',
-    'Sec-Fetch-Site': 'none'
   }
 };
 
-// In-memory rate limiting store (for demonstration)
-// In production, use Redis or a database
-const rateLimitStore: Record<string, { count: number, timestamp: number }> = {};
-
-// Check if the user has exceeded rate limits
-function checkRateLimit(ip: string): boolean {
-  const now = Date.now();
-  
-  if (rateLimitStore[ip] && (now - rateLimitStore[ip].timestamp) < 60000) { // 1 minute
-    if (rateLimitStore[ip].count >= 10) { // Max 10 proxy requests per minute
-      return true; // Rate limit exceeded
-    }
-    rateLimitStore[ip].count += 1;
-  } else {
-    rateLimitStore[ip] = { count: 1, timestamp: now };
-  }
-  
-  return false; // Not rate limited
-}
+// Maximum response size accepted from the target site (2 MB)
+const MAX_RESPONSE_BYTES = 2 * 1024 * 1024;
 
 export async function POST(request: NextRequest) {
   try {
-    const { url } = await request.json();
-    
+    const parsedBody = await parseJsonBody<{ url?: unknown }>(request);
+    if (parsedBody.errorResponse) {
+      return parsedBody.errorResponse;
+    }
+    const { url } = parsedBody.body;
+
     if (!url) {
       return NextResponse.json(
         { error: 'URL is required' },
         { status: 400 }
       );
     }
-    
+
     // Check rate limiting
-    const clientIp = request.headers.get('x-forwarded-for') || 'unknown';
-    if (checkRateLimit(clientIp)) {
+    const rateLimit = checkRateLimit(request, { limit: 10, windowMs: 60000, bucket: 'proxy' });
+    if (!rateLimit.allowed) {
+      return rateLimitResponse(rateLimit);
+    }
+
+    // Validate URL to prevent proxy abuse
+    if (typeof url !== 'string') {
       return NextResponse.json(
-        { error: 'Rate limit exceeded. Please try again later.' },
-        { status: 429 }
+        { error: 'Invalid URL' },
+        { status: 400 }
       );
     }
-    
-    // Validate URL to prevent proxy abuse
     let targetUrl: URL;
     try {
       targetUrl = new URL(url);
-      console.log(targetUrl)
     } catch {
       return NextResponse.json(
         { error: 'Invalid URL' },
         { status: 400 }
       );
     }
-    
+
+    // Only allow HTTPS to prevent SSRF via other protocols/downgrades
+    if (targetUrl.protocol !== 'https:') {
+      return NextResponse.json(
+        { error: 'Only https:// URLs are allowed' },
+        { status: 400 }
+      );
+    }
+
     // Check if the domain is allowed
     if (!ALLOWED_DOMAINS.includes(targetUrl.hostname)) {
       return NextResponse.json(
@@ -143,11 +124,15 @@ export async function POST(request: NextRequest) {
     // Make the request to the target URL
     console.log(`Proxying request to ${url}`);
     try {
-      const response = await axios.get(url, { 
+      const response = await axios.get(url, {
         headers,
         timeout: 15000,
-        maxRedirects: 5,
-        validateStatus: (status) => status < 400
+        // Do not follow redirects: the allowlist only validates the initial URL,
+        // so a redirect could escape it (SSRF).
+        maxRedirects: 0,
+        maxContentLength: MAX_RESPONSE_BYTES,
+        maxBodyLength: MAX_RESPONSE_BYTES,
+        validateStatus: (status) => status >= 200 && status < 300
       });
       
       // Return the HTML content
@@ -173,6 +158,13 @@ export async function POST(request: NextRequest) {
       }
       
       if (axiosError.response) {
+        // Redirects are rejected: the domain allowlist only checks the initial URL
+        if (axiosError.response.status >= 300 && axiosError.response.status < 400) {
+          return NextResponse.json(
+            { error: 'Redirects are not supported' },
+            { status: 502 }
+          );
+        }
         // The server responded with a status code outside the 2xx range
         return NextResponse.json(
           { error: `Job site returned error status: ${axiosError.response.status}` },
