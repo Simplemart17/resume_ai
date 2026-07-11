@@ -166,12 +166,15 @@ export function JobApplicationFiller({ resumeText, structuredData }: JobApplicat
     <div className="space-y-6">
       <div className="text-center">
         <h2 className="text-2xl font-bold text-gray-900 mb-2">Job Application Assistant</h2>
-        <p className="text-gray-600">Extract information from your resume to quickly fill job applications</p>
+        <p className="text-gray-600">Extract your resume details and copy them into applications with one click</p>
       </div>
 
       {/* Job URL Input */}
       <div className="bg-white rounded-xl border border-gray-200 p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Job Application URL</h3>
+        <h3 className="text-lg font-semibold text-gray-900 mb-1">Job posting URL (optional)</h3>
+        <p className="text-sm text-gray-500 mb-4">
+          We use this only to keep your copied details organized — nothing is submitted for you.
+        </p>
         <div className="flex space-x-3">
           <div className="flex-1">
             <input
@@ -184,7 +187,7 @@ export function JobApplicationFiller({ resumeText, structuredData }: JobApplicat
             {jobUrl && !isValidJobUrl(jobUrl) && (
               <p className="text-sm text-amber-600 mt-1 flex items-center">
                 <FiInfo className="mr-1" size={14} />
-                URL may not be supported. Supported: Greenhouse, Lever, Workday, etc.
+                This doesn&apos;t look like a common job board URL — double-check it before opening.
               </p>
             )}
           </div>
@@ -270,16 +273,16 @@ export function JobApplicationFiller({ resumeText, structuredData }: JobApplicat
       <div className="bg-blue-50 border border-blue-200 rounded-xl p-6">
         <h3 className="text-lg font-semibold text-blue-900 mb-3">How to Use</h3>
         <ol className="list-decimal list-inside space-y-2 text-blue-800 text-sm">
-          <li>Click &quot;Extract Info&quot; to analyze your resume and extract key information</li>
-          <li>Copy the job application URL from the company&apos;s career page</li>
+          <li>Click &quot;Extract Info&quot; to pull key details out of your resume</li>
+          <li>Optionally paste the job posting URL to keep it handy for reference</li>
           <li>Open the job application in a new tab</li>
-          <li>Use the copy buttons to quickly fill in the application form fields</li>
+          <li>Use the copy buttons to paste each detail into the application form fields</li>
           <li>Review and customize the information as needed before submitting</li>
         </ol>
 
         <div className="mt-4 p-3 bg-blue-100 rounded-lg">
           <p className="text-xs text-blue-700">
-            <strong>Tip:</strong> This tool works best with applications from Greenhouse, Lever, Workday, and other major ATS platforms.
+            <strong>Tip:</strong> Your details never leave this page — you copy and paste each field yourself, so this works with any application form.
           </p>
         </div>
       </div>

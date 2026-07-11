@@ -92,10 +92,10 @@ export function AutoFillApp() {
             transition={{ duration: 0.6 }}
           >
             <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent mb-4">
-              Job Application Auto-Fill
+              Auto-Fill Assistant
             </h1>
             <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-              Extract information from your resume to quickly fill job application forms
+              Extract your resume details once and copy them into any job application with one click
             </p>
           </motion.div>
         </div>

@@ -1,16 +1,17 @@
-import { FiFileText, FiDownload, FiZap, FiArrowRight, FiCheck, FiUpload, FiEdit3, FiShare2 } from 'react-icons/fi';
+import { FiFileText, FiDownload, FiZap, FiArrowRight, FiCheck, FiTarget, FiEdit3, FiShare2 } from 'react-icons/fi';
 import Link from 'next/link';
 import { TemplatePreview } from './TemplatePreview';
 import { TEMPLATES } from '@/config/templates';
 import { LogoMark } from './Logo';
 import { TemplatesModalProvider, TemplatesModalTrigger } from './landing/TemplatesModal';
+import { PricingCards } from './landing/PricingCards';
 
 export function LandingPage() {
   const features = [
     {
       icon: <FiFileText className="w-8 h-8" />,
       title: "Professional Templates",
-      description: "Choose from 4+ beautifully designed resume templates or upload your own custom template."
+      description: "Choose from 4 beautifully designed resume templates, all ATS-friendly and ready to download."
     },
     {
       icon: <FiZap className="w-8 h-8" />,
@@ -28,14 +29,14 @@ export function LandingPage() {
       description: "Build your resume step-by-step with our intuitive interface and real-time preview."
     },
     {
-      icon: <FiUpload className="w-8 h-8" />,
-      title: "Custom Template Upload",
-      description: "Upload your own resume template and generate PDFs in your unique style."
+      icon: <FiTarget className="w-8 h-8" />,
+      title: "ATS Match Scoring",
+      description: "See your resume's match score and missing keywords for any job description."
     },
     {
       icon: <FiShare2 className="w-8 h-8" />,
       title: "Job Application Auto-Fill",
-      description: "Extract information from your resume to quickly fill job application forms."
+      description: "Extract your details once and copy them into any job application."
     }
   ];
 
@@ -140,7 +141,7 @@ export function LandingPage() {
                 Professional Resume Templates
               </h2>
               <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-                Choose from our collection of professionally designed templates or upload your own custom design.
+                Choose from our collection of professionally designed templates.
               </p>
             </div>
 
@@ -181,134 +182,11 @@ export function LandingPage() {
                 Simple, Transparent Pricing
               </h2>
               <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-                Start for free and upgrade when you need more features. No hidden fees, no surprises.
+                Pay once, keep it forever. No subscriptions, no hidden fees.
               </p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-5xl mx-auto">
-              {/* Free Plan */}
-              <div className="bg-white border border-gray-200 rounded-xl p-8 shadow-lg">
-                <div className="text-center">
-                  <h3 className="text-2xl font-bold text-gray-900 mb-2">Free</h3>
-                  <div className="text-4xl font-bold text-gray-900 mb-4">$0</div>
-                  <p className="text-gray-600 mb-6">Perfect for getting started</p>
-
-                  <ul className="text-left space-y-3 mb-8">
-                    <li className="flex items-center gap-3">
-                      <FiCheck className="w-5 h-5 text-green-500" />
-                      <span className="text-gray-600">3 Resume Templates</span>
-                    </li>
-                    <li className="flex items-center gap-3">
-                      <FiCheck className="w-5 h-5 text-green-500" />
-                      <span className="text-gray-600">Basic AI Optimization</span>
-                    </li>
-                    <li className="flex items-center gap-3">
-                      <FiCheck className="w-5 h-5 text-green-500" />
-                      <span className="text-gray-600">PDF Download</span>
-                    </li>
-                    <li className="flex items-center gap-3">
-                      <FiCheck className="w-5 h-5 text-green-500" />
-                      <span className="text-gray-600">5 Downloads/month</span>
-                    </li>
-                  </ul>
-
-                  <Link
-                    href="/builder"
-                    className="w-full bg-gray-100 hover:bg-gray-200 text-gray-800 py-3 px-6 rounded-lg font-semibold transition-colors duration-200 block text-center"
-                  >
-                    Get Started Free
-                  </Link>
-                </div>
-              </div>
-
-              {/* Pro Plan */}
-              <div className="bg-gradient-to-br from-blue-600 to-purple-600 rounded-xl p-8 shadow-xl relative">
-                <div className="absolute top-4 right-4">
-                  <span className="bg-yellow-400 text-yellow-900 px-3 py-1 rounded-full text-sm font-semibold">
-                    Most Popular
-                  </span>
-                </div>
-
-                <div className="text-center text-white">
-                  <h3 className="text-2xl font-bold mb-2">Pro</h3>
-                  <div className="text-4xl font-bold mb-4">$9.99</div>
-                  <p className="text-blue-100 mb-6">Everything you need to succeed</p>
-
-                  <ul className="text-left space-y-3 mb-8">
-                    <li className="flex items-center gap-3">
-                      <FiCheck className="w-5 h-5 text-green-400" />
-                      <span className="text-blue-100">All Resume Templates</span>
-                    </li>
-                    <li className="flex items-center gap-3">
-                      <FiCheck className="w-5 h-5 text-green-400" />
-                      <span className="text-blue-100">Advanced AI Optimization</span>
-                    </li>
-                    <li className="flex items-center gap-3">
-                      <FiCheck className="w-5 h-5 text-green-400" />
-                      <span className="text-blue-100">Custom Template Upload</span>
-                    </li>
-                    <li className="flex items-center gap-3">
-                      <FiCheck className="w-5 h-5 text-green-400" />
-                      <span className="text-blue-100">Unlimited Downloads</span>
-                    </li>
-                    <li className="flex items-center gap-3">
-                      <FiCheck className="w-5 h-5 text-green-400" />
-                      <span className="text-blue-100">Cover Letter Generator</span>
-                    </li>
-                    <li className="flex items-center gap-3">
-                      <FiCheck className="w-5 h-5 text-green-400" />
-                      <span className="text-blue-100">Priority Support</span>
-                    </li>
-                  </ul>
-
-                  <Link
-                    href="/builder"
-                    className="w-full bg-white text-blue-600 py-3 px-6 rounded-lg font-semibold hover:bg-gray-100 transition-colors duration-200 block text-center"
-                  >
-                    Start Pro Trial
-                  </Link>
-                </div>
-              </div>
-
-              {/* Enterprise Plan */}
-              <div className="bg-white border border-gray-200 rounded-xl p-8 shadow-lg">
-                <div className="text-center">
-                  <h3 className="text-2xl font-bold text-gray-900 mb-2">Enterprise</h3>
-                  <div className="text-4xl font-bold text-gray-900 mb-4">Custom</div>
-                  <p className="text-gray-600 mb-6">For teams and organizations</p>
-
-                  <ul className="text-left space-y-3 mb-8">
-                    <li className="flex items-center gap-3">
-                      <FiCheck className="w-5 h-5 text-green-500" />
-                      <span className="text-gray-600">Everything in Pro</span>
-                    </li>
-                    <li className="flex items-center gap-3">
-                      <FiCheck className="w-5 h-5 text-green-500" />
-                      <span className="text-gray-600">Team Management</span>
-                    </li>
-                    <li className="flex items-center gap-3">
-                      <FiCheck className="w-5 h-5 text-green-500" />
-                      <span className="text-gray-600">Custom Branding</span>
-                    </li>
-                    <li className="flex items-center gap-3">
-                      <FiCheck className="w-5 h-5 text-green-500" />
-                      <span className="text-gray-600">API Access</span>
-                    </li>
-                    <li className="flex items-center gap-3">
-                      <FiCheck className="w-5 h-5 text-green-500" />
-                      <span className="text-gray-600">Dedicated Support</span>
-                    </li>
-                  </ul>
-
-                  <Link
-                    href="/builder"
-                    className="w-full bg-gray-100 hover:bg-gray-200 text-gray-800 py-3 px-6 rounded-lg font-semibold transition-colors duration-200 block text-center"
-                  >
-                    Contact Sales
-                  </Link>
-                </div>
-              </div>
-            </div>
+            <PricingCards />
           </div>
         </section>
 

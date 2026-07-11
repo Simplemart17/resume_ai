@@ -4,6 +4,8 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState, useEffect } from 'react';
 import Logo from './Logo';
+import { useUserTier, UserTierState } from '@/lib/useUserTier';
+import { TIERS, isPaidTier } from '@/lib/tiers';
 
 const APP_LINKS = [
   { href: '/builder', label: 'Resume Builder' },
@@ -20,6 +22,42 @@ const MARKETING_LINKS = [
   { href: '/optimize', label: 'AI Optimize' },
   { href: '/autofill', label: 'Auto-Fill' },
 ];
+
+// Tier pill shown next to the "Account" link for paid tiers.
+const PILL_GRADIENT =
+  'ml-1.5 inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-gradient-to-r from-blue-600 to-purple-600 text-white';
+// Variant for when the Account link itself has the solid active background.
+const PILL_ON_ACTIVE =
+  'ml-1.5 inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-white/20 text-white';
+
+/**
+ * Sign in / Account link for the nav. Renders nothing while auth state is
+ * loading or when accounts are disabled (no Supabase env vars).
+ */
+function AuthNavItem({
+  auth,
+  signInClassName,
+  accountClassName,
+  pillClassName,
+}: {
+  auth: UserTierState;
+  signInClassName: string;
+  accountClassName: string;
+  pillClassName: string;
+}) {
+  if (!auth.accountsEnabled || auth.loading) return null;
+
+  return auth.user ? (
+    <Link href="/account" className={accountClassName}>
+      Account
+      {isPaidTier(auth.tier) && <span className={pillClassName}>{TIERS[auth.tier].name}</span>}
+    </Link>
+  ) : (
+    <Link href="/login" className={signInClassName}>
+      Sign in
+    </Link>
+  );
+}
 
 function MarketingLink({ href, label, className }: { href: string; label: string; className: string }) {
   // Same-page anchors use a plain <a>; real routes use Next's <Link>
@@ -38,6 +76,7 @@ export function Navigation() {
   const pathname = usePathname();
   const isLanding = pathname === '/';
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const auth = useUserTier();
 
   // Close mobile menu whenever the route changes
   useEffect(() => {
@@ -64,6 +103,12 @@ export function Navigation() {
                     className="text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium transition-colors"
                   />
                 ))}
+                <AuthNavItem
+                  auth={auth}
+                  signInClassName="text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium transition-colors"
+                  accountClassName="text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium transition-colors"
+                  pillClassName={PILL_GRADIENT}
+                />
                 <Link
                   href="/builder"
                   className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-6 py-2 rounded-lg text-sm font-medium hover:from-blue-700 hover:to-purple-700 transition-all duration-200 shadow-lg hover:shadow-xl"
@@ -86,6 +131,16 @@ export function Navigation() {
                     {link.label}
                   </Link>
                 ))}
+                <AuthNavItem
+                  auth={auth}
+                  signInClassName="px-4 py-2 rounded-lg text-sm font-medium transition-colors text-gray-600 hover:text-blue-600 hover:bg-blue-50"
+                  accountClassName={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    pathname === '/account'
+                      ? 'bg-blue-600 text-white'
+                      : 'text-gray-600 hover:text-blue-600 hover:bg-blue-50'
+                  }`}
+                  pillClassName={pathname === '/account' ? PILL_ON_ACTIVE : PILL_GRADIENT}
+                />
               </div>
             )}
           </div>
@@ -127,6 +182,12 @@ export function Navigation() {
                     className="text-gray-600 hover:text-gray-900 block px-3 py-2 rounded-md text-base font-medium"
                   />
                 ))}
+                <AuthNavItem
+                  auth={auth}
+                  signInClassName="text-gray-600 hover:text-gray-900 block px-3 py-2 rounded-md text-base font-medium"
+                  accountClassName="text-gray-600 hover:text-gray-900 block px-3 py-2 rounded-md text-base font-medium"
+                  pillClassName={PILL_GRADIENT}
+                />
                 <Link
                   href="/builder"
                   className="bg-gradient-to-r from-blue-600 to-purple-600 text-white block px-3 py-2 rounded-md text-base font-medium"
@@ -135,19 +196,31 @@ export function Navigation() {
                 </Link>
               </>
             ) : (
-              APP_LINKS.map((link) => (
-                <Link
-                  key={link.href}
-                  href={link.href}
-                  className={`block px-3 py-2 rounded-md text-base font-medium transition-colors ${
-                    pathname === link.href
+              <>
+                {APP_LINKS.map((link) => (
+                  <Link
+                    key={link.href}
+                    href={link.href}
+                    className={`block px-3 py-2 rounded-md text-base font-medium transition-colors ${
+                      pathname === link.href
+                        ? 'bg-blue-600 text-white'
+                        : 'text-gray-600 hover:text-gray-900'
+                    }`}
+                  >
+                    {link.label}
+                  </Link>
+                ))}
+                <AuthNavItem
+                  auth={auth}
+                  signInClassName="block px-3 py-2 rounded-md text-base font-medium transition-colors text-gray-600 hover:text-gray-900"
+                  accountClassName={`block px-3 py-2 rounded-md text-base font-medium transition-colors ${
+                    pathname === '/account'
                       ? 'bg-blue-600 text-white'
                       : 'text-gray-600 hover:text-gray-900'
                   }`}
-                >
-                  {link.label}
-                </Link>
-              ))
+                  pillClassName={pathname === '/account' ? PILL_ON_ACTIVE : PILL_GRADIENT}
+                />
+              </>
             )}
           </div>
         </div>

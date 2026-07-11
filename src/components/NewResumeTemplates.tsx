@@ -1,11 +1,14 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FiDownload, FiEye, FiCheck, FiUpload, FiFileText } from 'react-icons/fi';
+import { FiDownload, FiEye, FiCheck, FiLock } from 'react-icons/fi';
 import { NewPDFGenerator } from '@/utils/newPdfGenerator';
 import { TemplatePreview } from './TemplatePreview';
 import { TEMPLATES } from '@/config/templates';
+import { canUseTemplate } from '@/lib/tiers';
+import { useUserTier } from '@/lib/useUserTier';
 import toast from 'react-hot-toast';
 import type { ResumeData } from '@/types/resume';
 
@@ -32,7 +35,18 @@ export function NewResumeTemplates({
 }: NewResumeTemplatesProps) {
   const [isGenerating, setIsGenerating] = useState(false);
   const [previewTemplate, setPreviewTemplate] = useState<string | null>(null);
-  const [customTemplate, setCustomTemplate] = useState<File | null>(null);
+  const { tier, loading: tierLoading, accountsEnabled } = useUserTier();
+
+  // Soft template gating (server-side enforcement lives elsewhere). Only gate
+  // when accounts are enabled — self-hosted installs without Supabase keep
+  // every template available.
+  const isTemplateLocked = (templateId: string) =>
+    accountsEnabled && !tierLoading && !canUseTemplate(tier, templateId);
+
+  // While the tier is still loading, disable actions on premium templates
+  // instead of flashing either the locked or unlocked state.
+  const isTemplatePending = (templateId: string) =>
+    accountsEnabled && tierLoading && !canUseTemplate('free', templateId);
 
   // Close the preview modal on Escape
   useEffect(() => {
@@ -50,6 +64,14 @@ export function NewResumeTemplates({
   };
 
   const handleDownloadPDF = async (templateId: string) => {
+    if (isTemplateLocked(templateId)) {
+      toast.error('This template requires Pro. Unlock all templates for a one-time $2 payment.');
+      return;
+    }
+    if (isTemplatePending(templateId)) {
+      // Tier still loading; the buttons are disabled, this is a fallback guard.
+      return;
+    }
     if (!resumeText.trim() && !resumeData.personalInfo.fullName) {
       toast.error('No resume content to export. Please upload a resume or build one first.');
       return;
@@ -72,18 +94,6 @@ export function NewResumeTemplates({
     setPreviewTemplate(templateId);
   };
 
-  const handleCustomTemplateUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) {
-      if (file.type === 'application/pdf' || file.type.includes('image/')) {
-        setCustomTemplate(file);
-        toast.success('Custom template uploaded successfully!');
-      } else {
-        toast.error('Please upload a PDF or image file for the template.');
-      }
-    }
-  };
-
   return (
     <div className="max-w-7xl mx-auto">
       <div className="text-center mb-8">
@@ -91,61 +101,9 @@ export function NewResumeTemplates({
           Choose Your Resume Template
         </h2>
         <p className="text-lg text-gray-600 max-w-3xl mx-auto">
-          Select from our professionally designed templates or upload your own custom template.
+          Select from our professionally designed templates.
           All templates are ATS-friendly and optimized for modern hiring systems.
         </p>
-      </div>
-
-      {/* Custom Template Upload */}
-      <div className="bg-gradient-to-r from-purple-50 to-blue-50 rounded-xl p-6 mb-8 border border-purple-200">
-        <div className="flex items-center justify-between">
-          <div>
-            <h3 className="text-lg font-semibold text-gray-900 mb-2 flex items-center gap-2">
-              <FiUpload className="w-5 h-5 text-purple-600" />
-              Upload Custom Template
-            </h3>
-            <p className="text-gray-600">
-              Have your own template? Upload it here and we&apos;ll format your resume to match.
-            </p>
-          </div>
-          <div>
-            <input
-              type="file"
-              id="custom-template"
-              accept=".pdf,image/*"
-              onChange={handleCustomTemplateUpload}
-              className="hidden"
-            />
-            <label
-              htmlFor="custom-template"
-              className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-lg font-semibold cursor-pointer transition-colors duration-200 flex items-center gap-2"
-            >
-              <FiUpload className="w-4 h-4" />
-              Upload Template
-            </label>
-          </div>
-        </div>
-        {customTemplate && (
-          <div className="mt-4 p-4 bg-white rounded-lg border border-purple-200">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <FiFileText className="w-5 h-5 text-purple-600" />
-                <span className="font-medium text-gray-900">{customTemplate.name}</span>
-              </div>
-              <button
-                onClick={() => handleDownloadPDF('custom')}
-                disabled={isGenerating}
-                className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg font-semibold transition-colors duration-200 flex items-center gap-2"
-              >
-                <FiDownload className="w-4 h-4" />
-                Generate PDF
-              </button>
-            </div>
-            <p className="text-sm text-amber-700 mt-3">
-              Custom template rendering is coming soon. Your resume will be generated using the Modern Professional layout.
-            </p>
-          </div>
-        )}
       </div>
 
       {/* Template Grid */}
@@ -164,6 +122,13 @@ export function NewResumeTemplates({
             {/* Template Preview */}
             <div className="h-48 p-4 bg-gray-50 relative">
               <TemplatePreview templateId={template.id} className="h-full" />
+
+              {isTemplateLocked(template.id) && (
+                <div className="absolute top-3 left-3 flex items-center gap-1.5 bg-gray-900/75 text-white text-xs font-semibold px-2.5 py-1 rounded-full">
+                  <FiLock className="w-3 h-3" />
+                  Pro
+                </div>
+              )}
 
               {selectedTemplate === template.id && (
                 <div className="absolute top-3 right-3 bg-blue-600 rounded-full p-2">
@@ -196,36 +161,57 @@ export function NewResumeTemplates({
               </div>
 
               {/* Actions */}
-              <div className="space-y-2">
-                <button
-                  onClick={() => handleTemplateSelect(template.id)}
-                  className={`w-full py-2 px-4 rounded-lg font-semibold transition-colors duration-200 ${selectedTemplate === template.id
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-gray-100 hover:bg-gray-200 text-gray-800'
-                    }`}
-                >
-                  {selectedTemplate === template.id ? 'Selected' : 'Select Template'}
-                </button>
-
-                <div className="flex gap-2">
+              {isTemplateLocked(template.id) ? (
+                <div className="space-y-2">
                   <button
                     onClick={() => handlePreview(template.id)}
-                    className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-800 py-2 px-3 rounded-lg font-medium transition-colors duration-200 flex items-center justify-center gap-2"
+                    className="w-full bg-gray-100 hover:bg-gray-200 text-gray-800 py-2 px-4 rounded-lg font-medium transition-colors duration-200 flex items-center justify-center gap-2"
                   >
                     <FiEye className="w-4 h-4" />
                     Preview
                   </button>
 
-                  <button
-                    onClick={() => handleDownloadPDF(template.id)}
-                    disabled={isGenerating}
-                    className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 px-3 rounded-lg font-medium transition-colors duration-200 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                  <Link
+                    href="/#pricing"
+                    className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white py-2 px-4 rounded-lg font-semibold transition-colors duration-200 flex items-center justify-center gap-2"
                   >
-                    <FiDownload className="w-4 h-4" />
-                    {isGenerating ? 'Generating...' : 'Download'}
-                  </button>
+                    <FiLock className="w-4 h-4" />
+                    Unlock with Pro — $2 one-time
+                  </Link>
                 </div>
-              </div>
+              ) : (
+                <div className="space-y-2">
+                  <button
+                    onClick={() => handleTemplateSelect(template.id)}
+                    disabled={isTemplatePending(template.id)}
+                    className={`w-full py-2 px-4 rounded-lg font-semibold transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${selectedTemplate === template.id
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-gray-100 hover:bg-gray-200 text-gray-800'
+                      }`}
+                  >
+                    {selectedTemplate === template.id ? 'Selected' : 'Select Template'}
+                  </button>
+
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => handlePreview(template.id)}
+                      className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-800 py-2 px-3 rounded-lg font-medium transition-colors duration-200 flex items-center justify-center gap-2"
+                    >
+                      <FiEye className="w-4 h-4" />
+                      Preview
+                    </button>
+
+                    <button
+                      onClick={() => handleDownloadPDF(template.id)}
+                      disabled={isGenerating || isTemplatePending(template.id)}
+                      className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 px-3 rounded-lg font-medium transition-colors duration-200 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <FiDownload className="w-4 h-4" />
+                      {isGenerating ? 'Generating...' : 'Download'}
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </motion.div>
         ))}
@@ -287,26 +273,39 @@ export function NewResumeTemplates({
                   </div>
 
                   {/* Action Buttons */}
-                  <div className="flex gap-3">
-                    <button
-                      onClick={() => {
-                        handleTemplateSelect(previewTemplate);
-                        setPreviewTemplate(null);
-                      }}
-                      className="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-semibold transition-colors duration-200"
+                  {isTemplateLocked(previewTemplate) ? (
+                    <Link
+                      href="/#pricing"
+                      onClick={() => setPreviewTemplate(null)}
+                      className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white px-6 py-3 rounded-lg font-semibold transition-colors duration-200 flex items-center justify-center gap-2"
                     >
-                      Use This Template
-                    </button>
-                    <button
-                      onClick={() => {
-                        handleDownloadPDF(previewTemplate);
-                        setPreviewTemplate(null);
-                      }}
-                      className="flex-1 bg-gray-600 hover:bg-gray-700 text-white px-6 py-3 rounded-lg font-semibold transition-colors duration-200"
-                    >
-                      Download PDF
-                    </button>
-                  </div>
+                      <FiLock className="w-4 h-4" />
+                      Unlock with Pro — $2 one-time
+                    </Link>
+                  ) : (
+                    <div className="flex gap-3">
+                      <button
+                        onClick={() => {
+                          handleTemplateSelect(previewTemplate);
+                          setPreviewTemplate(null);
+                        }}
+                        disabled={isTemplatePending(previewTemplate)}
+                        className="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-semibold transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        Use This Template
+                      </button>
+                      <button
+                        onClick={() => {
+                          handleDownloadPDF(previewTemplate);
+                          setPreviewTemplate(null);
+                        }}
+                        disabled={isGenerating || isTemplatePending(previewTemplate)}
+                        className="flex-1 bg-gray-600 hover:bg-gray-700 text-white px-6 py-3 rounded-lg font-semibold transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        Download PDF
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             </motion.div>
