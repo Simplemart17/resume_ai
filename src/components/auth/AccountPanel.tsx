@@ -1,44 +1,25 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
-import Link from 'next/link';
+import { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useClerk } from '@clerk/nextjs';
-import { useUserTier } from '@/lib/useUserTier';
-import { TIERS, PAID_TIERS, Tier, isTier, isPaidTier } from '@/lib/tiers';
+import { useSignOut, useUserTier } from '@/lib/useUserTier';
+import { TIERS, PAID_TIERS, PaidTier, Tier, isTier, isPaidTier, tierRank } from '@/lib/tiers';
 import { startCheckout } from '@/lib/checkout';
+import { fetchMe, refreshMe, MeData } from '@/lib/me';
+import { AccountsNotConfigured } from './AccountsNotConfigured';
 
-const CLERK_ENABLED = Boolean(process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY);
+/** A purchase created within this window is treated as the one the user just
+ * completed — the signal that webhook fulfillment has landed. */
+const RECENT_PURCHASE_MS = 5 * 60_000;
 
-interface Purchase {
-  tier: string;
-  amountCents: number;
-  createdAt: string;
+function fulfillmentLanded(data: MeData): boolean {
+  return (
+    isPaidTier(data.tier) &&
+    data.purchases.some(
+      (p) => Date.now() - new Date(p.createdAt).getTime() < RECENT_PURCHASE_MS
+    )
+  );
 }
-
-/** Parsed shape of GET /api/me. */
-interface MeData {
-  tier: Tier;
-  usage: { used: number; quota: number };
-  purchases: Purchase[];
-}
-
-const TIER_ORDER: Tier[] = ['free', 'pro', 'enterprise'];
-
-// useClerk() throws outside a ClerkProvider, and the provider is only mounted
-// when Clerk is configured. NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY is inlined at
-// build time, so selecting the hook implementation at module level keeps the
-// hook order stable for the app's lifetime.
-function useClerkSignOut() {
-  const { signOut } = useClerk();
-  return signOut;
-}
-
-function useDisabledSignOut() {
-  return async () => {};
-}
-
-const useSignOut = CLERK_ENABLED ? useClerkSignOut : useDisabledSignOut;
 
 function TierBadge({ tier }: { tier: Tier }) {
   return (
@@ -74,71 +55,79 @@ export function AccountPanel() {
   const checkoutSuccess = searchParams.get('checkout') === 'success';
   const userId = user?.id ?? null;
 
-  // Require a session: bounce to /login when signed out.
-  // Skipped mid-sign-out so the sign-out redirect to '/' wins.
+  // Upgrade buttons stay disabled through the Stripe redirect; if the user
+  // comes BACK and the browser restores this page from bfcache, re-enable.
+  useEffect(() => {
+    const onPageShow = (event: PageTransitionEvent) => {
+      if (event.persisted) setUpgrading(null);
+    };
+    window.addEventListener('pageshow', onPageShow);
+    return () => window.removeEventListener('pageshow', onPageShow);
+  }, []);
+
+  // Require a session: bounce to /login when signed out, carrying the
+  // current URL (including ?checkout=success) so the user returns here —
+  // not the home page — after signing in. Skipped mid-sign-out so the
+  // sign-out redirect to '/' wins.
   useEffect(() => {
     if (accountsEnabled && !loading && !user && !signingOut) {
-      router.replace('/login');
+      const returnTo = window.location.pathname + window.location.search;
+      router.replace(`/login?redirect_url=${encodeURIComponent(returnTo)}`);
     }
   }, [accountsEnabled, loading, user, signingOut, router]);
 
-  const fetchMe = useCallback(async (): Promise<MeData | null> => {
-    try {
-      const res = await fetch('/api/me');
-      if (!res.ok) return null;
-      const data = await res.json();
-      return {
-        tier: isTier(data?.tier) ? data.tier : 'free',
-        usage: {
-          used: Number(data?.usage?.used) || 0,
-          quota: Number(data?.usage?.quota) || 0,
-        },
-        purchases: Array.isArray(data?.purchases) ? data.purchases : [],
-      };
-    } catch {
-      // Network error — fall back to the session tier with empty usage/history.
-      return null;
-    }
-  }, []);
-
-  // Load tier, usage, and purchase history once signed in.
+  // Load tier, usage, and purchase history once signed in. fetchMe is the
+  // shared cached /api/me fetcher — this reuses the request useUserTier
+  // already fired instead of hitting the endpoint again.
   useEffect(() => {
     if (!accountsEnabled || !userId) return;
     let cancelled = false;
-    fetchMe().then((data) => {
+    fetchMe(userId).then((data) => {
       if (!cancelled && data) setMe(data);
     });
     return () => {
       cancelled = true;
     };
-  }, [accountsEnabled, userId, fetchMe]);
+  }, [accountsEnabled, userId]);
 
   // After a successful checkout the Stripe webhook upgrades the tier
-  // asynchronously — re-fetch once after a short delay so the new tier
-  // shows up without a manual refresh.
+  // asynchronously. Poll until a fresh purchase shows up (or ~20s), so slow
+  // webhook delivery doesn't strand the buyer on their old plan; refreshMe
+  // also notifies useUserTier consumers, keeping the nav pill in sync.
   useEffect(() => {
     if (!checkoutSuccess || !accountsEnabled || !userId) return;
     let cancelled = false;
-    const timer = setTimeout(() => {
-      fetchMe().then((data) => {
-        if (!cancelled && data) setMe(data);
-      });
-    }, 2000);
+    let timer: ReturnType<typeof setTimeout>;
+    let attempts = 0;
+
+    const poll = async () => {
+      attempts += 1;
+      const data = await refreshMe(userId);
+      if (cancelled) return;
+      if (data) setMe(data);
+      if (data && fulfillmentLanded(data)) return;
+      if (attempts < 6) {
+        timer = setTimeout(poll, 3500);
+      }
+    };
+
+    timer = setTimeout(poll, 1500);
     return () => {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [checkoutSuccess, accountsEnabled, userId, fetchMe]);
+  }, [checkoutSuccess, accountsEnabled, userId]);
 
-  const handleUpgrade = async (target: Exclude<Tier, 'free'>) => {
+  const handleUpgrade = async (target: PaidTier) => {
     setCheckoutError(null);
     setUpgrading(target);
+    // startCheckout never throws: a string is an error to show, null means
+    // navigation has started — keep the button disabled through the redirect.
     const errorMessage = await startCheckout(target);
     if (errorMessage) {
       setCheckoutError(errorMessage);
       setUpgrading(null);
     }
-    // On success startCheckout navigates away; leave the button disabled.
   };
 
   const handleSignOut = async () => {
@@ -155,20 +144,7 @@ export function AccountPanel() {
   if (!accountsEnabled) {
     return (
       <div className="max-w-2xl mx-auto px-4 py-16">
-        <div className="bg-white rounded-xl shadow-lg p-8 text-center">
-          <h1 className="text-xl font-bold text-gray-900 mb-2">
-            Accounts are not configured on this deployment
-          </h1>
-          <p className="text-gray-600 text-sm mb-6">
-            This page requires authentication to be set up by the site operator.
-          </p>
-          <Link
-            href="/"
-            className="inline-block bg-gradient-to-r from-blue-600 to-purple-600 text-white px-6 py-2 rounded-lg text-sm font-medium hover:from-blue-700 hover:to-purple-700 transition-all duration-200 shadow-lg hover:shadow-xl"
-          >
-            Back to home
-          </Link>
-        </div>
+        <AccountsNotConfigured description="This page requires authentication to be set up by the site operator." />
       </div>
     );
   }
@@ -191,7 +167,7 @@ export function AccountPanel() {
   const aiUsed = me?.usage.used ?? 0;
   const quota = me?.usage.quota ?? TIERS[tier].monthlyAiQuota;
   const purchases = me?.purchases ?? [];
-  const upgrades = PAID_TIERS.filter((t) => TIER_ORDER.indexOf(t) > TIER_ORDER.indexOf(tier));
+  const upgrades = PAID_TIERS.filter((t) => tierRank(t) > tierRank(tier));
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-12 space-y-6">
@@ -275,7 +251,7 @@ export function AccountPanel() {
                 <button
                   key={t}
                   type="button"
-                  onClick={() => handleUpgrade(t as Exclude<Tier, 'free'>)}
+                  onClick={() => handleUpgrade(t)}
                   disabled={upgrading !== null}
                   className="flex-1 bg-gradient-to-r from-blue-600 to-purple-600 text-white px-4 py-2.5 rounded-lg text-sm font-medium hover:from-blue-700 hover:to-purple-700 transition-all duration-200 shadow-lg hover:shadow-xl disabled:opacity-60 disabled:cursor-not-allowed"
                 >

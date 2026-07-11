@@ -1,18 +1,28 @@
 'use client';
 
-import type { Tier } from '@/lib/tiers';
+import type { PaidTier } from '@/lib/tiers';
 
 /**
  * Starts a Stripe Checkout for a paid tier: asks our API for a session URL
- * and redirects. Returns an error message instead of redirecting when the
- * user must sign in first (401) or checkout is unavailable.
+ * and redirects. Never throws.
+ *
+ * Contract: a string return is an error to display (reset your pending
+ * state); `null` means navigation has been initiated (to Stripe, or to
+ * /login on 401) — the page is being left, so callers must KEEP their
+ * button disabled: re-enabling mid-navigation invites a second click and a
+ * duplicate checkout session.
  */
-export async function startCheckout(tier: Exclude<Tier, 'free'>): Promise<string | null> {
-  const response = await fetch('/api/stripe/checkout', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ tier }),
-  });
+export async function startCheckout(tier: PaidTier): Promise<string | null> {
+  let response: Response;
+  try {
+    response = await fetch('/api/stripe/checkout', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tier }),
+    });
+  } catch {
+    return 'Could not reach the server. Check your connection and try again.';
+  }
 
   const data = await response.json().catch(() => null);
 

@@ -1,17 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { FiCheck } from 'react-icons/fi';
-import { TIERS, Tier } from '@/lib/tiers';
+import { isPaidTier, PaidTier, Tier, TIER_ORDER, TIERS, tierRank } from '@/lib/tiers';
 import { useUserTier } from '@/lib/useUserTier';
 import { startCheckout } from '@/lib/checkout';
-
-const TIER_ORDER: Tier[] = ['free', 'pro', 'enterprise'];
-
-function tierRank(tier: Tier): number {
-  return TIER_ORDER.indexOf(tier);
-}
 
 /**
  * The three pricing cards, rendered entirely from the TIERS definition in
@@ -21,24 +15,29 @@ function tierRank(tier: Tier): number {
 export function PricingCards() {
   const { tier: userTier, loading, accountsEnabled } = useUserTier();
   const [pendingTier, setPendingTier] = useState<Tier | null>(null);
-  const [errors, setErrors] = useState<Partial<Record<Tier, string>>>({});
+  // Only one checkout can be in flight, so one error slot is enough.
+  const [checkoutError, setCheckoutError] = useState<{ tier: Tier; message: string } | null>(null);
 
-  const handleCheckout = async (tierId: Exclude<Tier, 'free'>) => {
+  // Buttons stay disabled through the Stripe redirect; if the user comes
+  // BACK and the browser restores this page from bfcache, re-enable them.
+  useEffect(() => {
+    const onPageShow = (event: PageTransitionEvent) => {
+      if (event.persisted) setPendingTier(null);
+    };
+    window.addEventListener('pageshow', onPageShow);
+    return () => window.removeEventListener('pageshow', onPageShow);
+  }, []);
+
+  const handleCheckout = async (tierId: PaidTier) => {
     setPendingTier(tierId);
-    setErrors((prev) => ({ ...prev, [tierId]: undefined }));
-    try {
-      const error = await startCheckout(tierId);
-      if (error) {
-        setErrors((prev) => ({ ...prev, [tierId]: error }));
-      }
-    } catch {
-      setErrors((prev) => ({
-        ...prev,
-        [tierId]: 'Checkout is not available right now. Please try again later.',
-      }));
-    } finally {
+    setCheckoutError(null);
+    const error = await startCheckout(tierId);
+    if (error) {
+      setCheckoutError({ tier: tierId, message: error });
       setPendingTier(null);
     }
+    // On success startCheckout has begun navigating away — keep the button
+    // disabled so a second click can't open a duplicate checkout session.
   };
 
   return (
@@ -47,11 +46,11 @@ export function PricingCards() {
         {TIER_ORDER.map((tierId) => {
           const tierDef = TIERS[tierId];
           const highlighted = tierId === 'pro';
-          const isPaid = tierDef.priceCents > 0;
+          const isPaid = isPaidTier(tierId);
           // Owning an equal or higher tier covers this card.
           const owned =
             isPaid && accountsEnabled && !loading && tierRank(userTier) >= tierRank(tierId);
-          const error = errors[tierId];
+          const error = checkoutError?.tier === tierId ? checkoutError.message : null;
 
           return (
             <div
@@ -115,7 +114,7 @@ export function PricingCards() {
                 ) : (
                   <>
                     <button
-                      onClick={() => handleCheckout(tierId as Exclude<Tier, 'free'>)}
+                      onClick={() => isPaidTier(tierId) && handleCheckout(tierId)}
                       disabled={!accountsEnabled || loading || owned || pendingTier !== null}
                       className={`w-full py-3 px-6 rounded-lg font-semibold transition-colors duration-200 block text-center disabled:opacity-60 disabled:cursor-not-allowed ${
                         highlighted

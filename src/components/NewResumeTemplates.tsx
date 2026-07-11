@@ -37,9 +37,12 @@ export function NewResumeTemplates({
   const [previewTemplate, setPreviewTemplate] = useState<string | null>(null);
   const { tier, loading: tierLoading, accountsEnabled } = useUserTier();
 
-  // Soft template gating (server-side enforcement lives elsewhere). Only gate
-  // when accounts are enabled — self-hosted installs without Supabase keep
-  // every template available.
+  // CLIENT-ONLY template gating. There is no server-side enforcement and
+  // none is possible here: PDFs are generated entirely in the browser by
+  // jsPDF, so a determined user can bypass this via devtools. The gate is a
+  // purchase prompt, not a security boundary — keep the tier feature lists
+  // honest about that. Only gate when accounts are enabled (Clerk env
+  // present) — self-hosted installs without accounts keep every template.
   const isTemplateLocked = (templateId: string) =>
     accountsEnabled && !tierLoading && !canUseTemplate(tier, templateId);
 
@@ -59,6 +62,13 @@ export function NewResumeTemplates({
   }, [previewTemplate]);
 
   const handleTemplateSelect = (templateId: string) => {
+    // Locked templates never render a Select button, but guard here too so a
+    // tier flip mid-render (or a future call site) can't select one anyway —
+    // handleDownloadPDF re-checks the same way.
+    if (isTemplateLocked(templateId) || isTemplatePending(templateId)) {
+      toast.error('This template requires Pro. Unlock all templates for a one-time $2 payment.');
+      return;
+    }
     onTemplateSelect?.(templateId);
     toast.success(`${TEMPLATES.find(t => t.id === templateId)?.name} template selected!`);
   };
