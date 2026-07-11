@@ -3,15 +3,22 @@
 // import from here — never redeclare tier rules elsewhere. Every feature
 // listed in `features` MUST be enforced in code ("honest tiers").
 
+import { TEMPLATES } from '@/config/templates';
+
 export type Tier = 'free' | 'pro' | 'enterprise';
+export type PaidTier = Exclude<Tier, 'free'>;
+
+/** Ascending rank order — the one place tier precedence is defined. */
+export const TIER_ORDER: readonly Tier[] = ['free', 'pro', 'enterprise'];
+
+export function tierRank(tier: Tier): number {
+  return TIER_ORDER.indexOf(tier);
+}
 
 export const TEMPLATE_IDS_FREE = ['modern-professional', 'classic-traditional'] as const;
-export const TEMPLATE_IDS_ALL = [
-  'modern-professional',
-  'classic-traditional',
-  'creative-designer',
-  'executive-premium',
-] as const;
+// Derived from the template registry so a newly added template can never be
+// silently locked out of every tier by a stale hand-maintained list.
+export const TEMPLATE_IDS_ALL: readonly string[] = TEMPLATES.map((t) => t.id);
 
 export interface TierDefinition {
   id: Tier;
@@ -52,7 +59,7 @@ export const TIERS: Record<Tier, TierDefinition> = {
     monthlyAiQuota: 20,
     templateIds: TEMPLATE_IDS_ALL,
     features: [
-      'All 4 resume templates',
+      `All ${TEMPLATE_IDS_ALL.length} resume templates`,
       'Unlimited PDF downloads',
       '20 AI optimizations or cover letters per month — no API key needed',
       'Everything in Free',
@@ -69,18 +76,17 @@ export const TIERS: Record<Tier, TierDefinition> = {
     features: [
       'Everything in Pro',
       '100 AI optimizations or cover letters per month — no API key needed',
-      'Priority email support',
     ],
   },
 };
 
-export const PAID_TIERS: Tier[] = ['pro', 'enterprise'];
+export const PAID_TIERS: readonly PaidTier[] = ['pro', 'enterprise'];
 
 export function isTier(value: unknown): value is Tier {
   return value === 'free' || value === 'pro' || value === 'enterprise';
 }
 
-export function isPaidTier(tier: Tier): boolean {
+export function isPaidTier(tier: Tier): tier is PaidTier {
   return tier !== 'free';
 }
 
@@ -90,6 +96,5 @@ export function canUseTemplate(tier: Tier, templateId: string): boolean {
 
 /** Buying a higher tier supersedes a lower one; never downgrade on purchase. */
 export function highestTier(a: Tier, b: Tier): Tier {
-  const order: Tier[] = ['free', 'pro', 'enterprise'];
-  return order.indexOf(a) >= order.indexOf(b) ? a : b;
+  return tierRank(a) >= tierRank(b) ? a : b;
 }

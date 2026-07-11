@@ -84,5 +84,53 @@ begin
 end;
 $$;
 
+-- Refund one AI operation (floor 0): called when quota was consumed but the
+-- OpenAI call failed, so users are only charged for delivered results.
+create or replace function resume.refund_ai_quota(
+  p_user_id text,
+  p_period text
+)
+returns void
+language plpgsql
+security definer set search_path = resume
+as $$
+begin
+  update resume.ai_usage
+  set count = greatest(count - 1, 0)
+  where user_id = p_user_id and period = p_period;
+end;
+$$;
+
+-- Atomic, monotonic tier upgrade: takes the row-level max of the current and
+-- purchased tier in one statement, so concurrently delivered Stripe webhook
+-- events can never downgrade (a JS read-modify-write could interleave).
+create or replace function resume.upgrade_tier(
+  p_user_id text,
+  p_tier text
+)
+returns void
+language plpgsql
+security definer set search_path = resume
+as $$
+begin
+  insert into resume.profiles (user_id, tier)
+  values (p_user_id, p_tier)
+  on conflict (user_id) do update
+  set tier = excluded.tier,
+      updated_at = now()
+  where array_position(array['free', 'pro', 'enterprise'], profiles.tier)
+      < array_position(array['free', 'pro', 'enterprise'], excluded.tier);
+end;
+$$;
+
+-- Functions are SECURITY DEFINER and PostgREST-reachable once the schema is
+-- exposed, so lock them down for real: revoking from anon/authenticated alone
+-- is a no-op because EXECUTE is granted to PUBLIC by default on new functions.
+revoke execute on function resume.consume_ai_quota(text, text, integer) from public;
+revoke execute on function resume.refund_ai_quota(text, text) from public;
+revoke execute on function resume.upgrade_tier(text, text) from public;
 grant execute on function resume.consume_ai_quota(text, text, integer) to service_role;
-revoke execute on function resume.consume_ai_quota(text, text, integer) from anon, authenticated;
+grant execute on function resume.refund_ai_quota(text, text) to service_role;
+grant execute on function resume.upgrade_tier(text, text) to service_role;
+-- Future functions in this schema should not default to PUBLIC either.
+alter default privileges in schema resume revoke execute on functions from public;
