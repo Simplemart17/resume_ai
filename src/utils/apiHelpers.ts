@@ -39,6 +39,16 @@ export function getOpenAIKey(request: NextRequest): string | undefined {
 }
 
 /**
+ * User-supplied key from the Authorization header ONLY — no env fallback.
+ * The AI routes gate the server key behind paid-tier quota, so they must be
+ * able to tell a BYOK request apart from one that would spend the server key.
+ */
+export function getBearerKey(request: NextRequest): string | undefined {
+  const authHeader = request.headers.get('authorization');
+  return authHeader?.match(/^Bearer\s+(.+)$/i)?.[1] || undefined;
+}
+
+/**
  * Maps an OpenAI.APIError to a client-appropriate response, forwarding its
  * status. Returns null for non-OpenAI errors so callers fall through to
  * their own generic handling.
