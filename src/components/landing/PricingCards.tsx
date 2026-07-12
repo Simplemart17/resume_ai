@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { FiCheck } from 'react-icons/fi';
 import { isPaidTier, PaidTier, Tier, TIER_ORDER, TIERS, tierRank } from '@/lib/tiers';
 import { useUserTier } from '@/lib/useUserTier';
 import { startCheckout } from '@/lib/checkout';
@@ -42,85 +41,86 @@ export function PricingCards() {
 
   return (
     <div>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-5xl mx-auto">
-        {TIER_ORDER.map((tierId) => {
-          const tierDef = TIERS[tierId];
-          const highlighted = tierId === 'pro';
-          const isPaid = isPaidTier(tierId);
-          // Owning an equal or higher tier covers this card.
-          const owned =
-            isPaid && accountsEnabled && !loading && tierRank(userTier) >= tierRank(tierId);
-          const error = checkoutError?.tier === tierId ? checkoutError.message : null;
+      {/* A ruled ledger, not a fan of floating cards — the three tiers share
+          one sheet, hairline-separated, with Pro as the dark "lit" column. */}
+      <div className="paper overflow-hidden max-w-5xl mx-auto">
+        <div className="grid gap-px bg-rule md:grid-cols-3">
+          {TIER_ORDER.map((tierId) => {
+            const tierDef = TIERS[tierId];
+            const highlighted = tierId === 'pro';
+            const isPaid = isPaidTier(tierId);
+            // Owning an equal or higher tier covers this card.
+            const owned =
+              isPaid && accountsEnabled && !loading && tierRank(userTier) >= tierRank(tierId);
+            const error = checkoutError?.tier === tierId ? checkoutError.message : null;
 
-          return (
-            <div
-              key={tierDef.id}
-              className={
-                highlighted
-                  ? 'bg-gradient-to-br from-blue-600 to-purple-600 rounded-xl p-8 shadow-xl relative'
-                  : 'bg-white border border-gray-200 rounded-xl p-8 shadow-lg'
-              }
-            >
-              {highlighted && (
-                <div className="absolute top-4 right-4">
-                  <span className="bg-yellow-400 text-yellow-900 px-3 py-1 rounded-full text-sm font-semibold">
-                    Most Popular
+            return (
+              <div
+                key={tierDef.id}
+                className={`flex flex-col p-7 ${highlighted ? 'bg-ink text-paper' : 'bg-paper'}`}
+              >
+                <div className="flex items-center gap-2 mb-3">
+                  <p
+                    className={`font-mono text-[11px] font-medium uppercase tracking-[0.14em] ${
+                      highlighted ? 'text-paper/60' : 'text-ink-soft'
+                    }`}
+                  >
+                    {tierDef.name}
+                  </p>
+                  {highlighted && (
+                    <span className="font-mono text-[10px] font-semibold uppercase tracking-wider bg-pen text-paper px-1.5 py-0.5 rounded-[2px]">
+                      Most popular
+                    </span>
+                  )}
+                </div>
+
+                <div className="flex items-baseline gap-2 mb-1">
+                  <span
+                    className={`font-display text-5xl font-bold tracking-tight tabular-nums ${
+                      highlighted ? 'text-paper' : 'text-ink'
+                    }`}
+                  >
+                    {tierDef.priceLabel}
+                  </span>
+                  <span className={`font-mono text-xs ${highlighted ? 'text-paper/60' : 'text-ink-soft'}`}>
+                    {isPaid ? 'one-time' : 'free forever'}
                   </span>
                 </div>
-              )}
-
-              <div className={`text-center ${highlighted ? 'text-white' : ''}`}>
-                <h3
-                  className={`text-2xl font-bold mb-2 ${highlighted ? '' : 'text-gray-900'}`}
-                >
-                  {tierDef.name}
-                </h3>
-                <div
-                  className={`text-4xl font-bold ${highlighted ? '' : 'text-gray-900'}`}
-                >
-                  {tierDef.priceLabel}
-                </div>
-                <div
-                  className={`text-sm mb-4 ${highlighted ? 'text-blue-100' : 'text-gray-500'}`}
-                >
-                  {isPaid ? 'one-time' : 'free forever'}
-                </div>
-                <p className={`mb-6 ${highlighted ? 'text-blue-100' : 'text-gray-600'}`}>
+                <p className={`text-sm mb-6 ${highlighted ? 'text-paper/70' : 'text-ink-soft'}`}>
                   {tierDef.tagline}
                 </p>
 
-                <ul className="text-left space-y-3 mb-8">
+                <ul className="space-y-2.5 mb-8 flex-1">
                   {tierDef.features.map((feature) => (
-                    <li key={feature} className="flex items-start gap-3">
-                      <FiCheck
-                        className={`w-5 h-5 shrink-0 mt-0.5 ${
-                          highlighted ? 'text-green-400' : 'text-green-500'
+                    <li
+                      key={feature}
+                      className={`flex items-start gap-2.5 text-sm ${
+                        highlighted ? 'text-paper/85' : 'text-ink'
+                      }`}
+                    >
+                      <span
+                        aria-hidden="true"
+                        className={`ok-token shrink-0 leading-5 ${
+                          highlighted ? 'text-pen-light' : 'text-pass'
                         }`}
-                      />
-                      <span className={highlighted ? 'text-blue-100' : 'text-gray-600'}>
-                        {feature}
+                      >
+                        ✓
                       </span>
+                      <span>{feature}</span>
                     </li>
                   ))}
                 </ul>
 
                 {!isPaid ? (
-                  <Link
-                    href="/builder"
-                    className="w-full bg-gray-100 hover:bg-gray-200 text-gray-800 py-3 px-6 rounded-lg font-semibold transition-colors duration-200 block text-center"
-                  >
-                    Get Started Free
+                  <Link href="/builder" className="btn-ghost w-full px-6 py-3">
+                    Start free
                   </Link>
                 ) : (
                   <>
                     <button
                       onClick={() => isPaidTier(tierId) && handleCheckout(tierId)}
                       disabled={!accountsEnabled || loading || owned || pendingTier !== null}
-                      className={`w-full py-3 px-6 rounded-lg font-semibold transition-colors duration-200 block text-center disabled:opacity-60 disabled:cursor-not-allowed ${
-                        highlighted
-                          ? 'bg-white text-blue-600 hover:bg-gray-100'
-                          : 'bg-gray-900 text-white hover:bg-gray-700'
-                      }`}
+                      className={`${highlighted ? 'btn-pen' : 'btn-ink'} w-full px-6 py-3`}
                     >
                       {owned
                         ? userTier === tierId
@@ -131,36 +131,30 @@ export function PricingCards() {
                           : `Get ${tierDef.name}`}
                     </button>
                     {!accountsEnabled && (
-                      <p
-                        className={`mt-3 text-sm ${
-                          highlighted ? 'text-blue-100' : 'text-gray-500'
-                        }`}
-                      >
+                      <p className={`mt-3 font-mono text-xs ${highlighted ? 'text-paper/60' : 'text-ink-soft'}`}>
                         Payments not configured on this deployment
                       </p>
                     )}
                     {error && (
-                      <p
-                        className={`mt-3 text-sm ${
-                          highlighted ? 'text-yellow-200' : 'text-red-600'
-                        }`}
-                        role="alert"
-                      >
+                      <p className={`mt-3 text-sm ${highlighted ? 'text-[#ff9d94]' : 'text-fail'}`} role="alert">
                         {error}
                       </p>
                     )}
                   </>
                 )}
               </div>
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
+
+        <div className="machine-strip">
+          <span className="machine-token">[pricing]</span>
+          <span>one-time · lifetime · every listed feature enforced in code</span>
+        </div>
       </div>
 
-      <p className="text-center text-sm text-gray-500 mt-8 max-w-3xl mx-auto">
-        Prices are one-time payments. AI features on our key are subject to monthly
-        fair-use limits shown above; bring your own OpenAI key for unlimited use on
-        any plan.
+      <p className="font-mono text-xs text-ink-soft mt-6 max-w-3xl mx-auto text-center">
+        AI optimization and cover letters run on your own OpenAI key on every plan, unmetered by us. Paid plans unlock templates.
       </p>
     </div>
   );
