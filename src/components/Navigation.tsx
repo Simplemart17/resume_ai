@@ -14,7 +14,7 @@ const APP_LINKS = [
 ];
 
 // Marketing links shown on the landing page (desktop and mobile menus).
-// The "Get Started" CTA is rendered separately since it is styled differently.
+// The "Start a resume" CTA is rendered separately since it is styled differently.
 const MARKETING_LINKS = [
   { href: '#features', label: 'Features' },
   { href: '#templates', label: 'Templates' },
@@ -23,12 +23,23 @@ const MARKETING_LINKS = [
   { href: '/autofill', label: 'Auto-Fill' },
 ];
 
-// Tier pill shown next to the "Account" link for paid tiers.
-const PILL_GRADIENT =
-  'ml-1.5 inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-gradient-to-r from-blue-600 to-purple-600 text-white';
-// Variant for when the Account link itself has the solid active background.
+// Tier pill shown next to the "Account" link for paid tiers — a mono badge,
+// like a stamp on the document.
+const PILL_TIER =
+  'ml-1.5 inline-flex items-center px-1.5 py-0.5 rounded-full font-mono text-[10px] font-semibold uppercase tracking-wider bg-pen-wash text-pen';
+// Variant for when the Account link itself has the pen-wash active background.
 const PILL_ON_ACTIVE =
-  'ml-1.5 inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-white/20 text-white';
+  'ml-1.5 inline-flex items-center px-1.5 py-0.5 rounded-full font-mono text-[10px] font-semibold uppercase tracking-wider bg-pen text-paper';
+
+// Shared link treatments: quiet ink links; the active page gets a pen rule
+// under the label — an underline drawn by the editor, not a filled pill.
+const DESK_LINK = 'px-3 py-2 text-sm font-medium text-ink-soft hover:text-ink transition-colors';
+const DESK_LINK_ACTIVE =
+  'px-3 py-2 text-sm font-medium text-ink underline decoration-pen decoration-2 underline-offset-[10px]';
+const MOBILE_LINK =
+  'block px-3 py-2.5 rounded-[3px] text-base font-medium text-ink-soft hover:text-ink hover:bg-bench transition-colors';
+const MOBILE_LINK_ACTIVE =
+  'block px-3 py-2.5 rounded-[3px] text-base font-medium bg-pen-wash text-pen';
 
 /**
  * Sign in / Account link for the nav. Hidden only when accounts are disabled
@@ -80,6 +91,7 @@ export function Navigation() {
   const pathname = usePathname();
   const isLanding = pathname === '/';
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
   const auth = useUserTier();
 
   // Close mobile menu whenever the route changes
@@ -87,63 +99,73 @@ export function Navigation() {
     setIsMenuOpen(false);
   }, [pathname]);
 
+  // Elevate the sticky bar once the page leaves the top, so it detaches from
+  // the content instead of sitting flat.
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 8);
+    onScroll();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
+
+  // Escape closes the mobile menu.
+  useEffect(() => {
+    if (!isMenuOpen) return;
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setIsMenuOpen(false);
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [isMenuOpen]);
+
   return (
-    <nav className="bg-white shadow-sm sticky top-0 z-50">
+    <nav
+      className={`bg-paper/90 backdrop-blur-sm sticky top-0 z-50 transition-shadow duration-200 ${
+        scrolled ? 'border-b border-rule shadow-[0_1px_16px_-8px_rgb(22_24_29/0.4)]' : 'border-b border-rule'
+      }`}
+    >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
           <Link href="/" className="flex-shrink-0">
-            <Logo size={34} />
+            <Logo size={32} />
           </Link>
 
           {/* Desktop links */}
           <div className="hidden md:block">
             {isLanding ? (
-              <div className="ml-10 flex items-baseline space-x-4">
+              <div className="ml-10 flex items-center gap-1">
                 {MARKETING_LINKS.map((link) => (
                   <MarketingLink
                     key={link.href}
                     href={link.href}
                     label={link.label}
-                    className="text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium transition-colors"
+                    className={DESK_LINK}
                   />
                 ))}
                 <AuthNavItem
                   auth={auth}
-                  signInClassName="text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium transition-colors"
-                  accountClassName="text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium transition-colors"
-                  pillClassName={PILL_GRADIENT}
+                  signInClassName={DESK_LINK}
+                  accountClassName={DESK_LINK}
+                  pillClassName={PILL_TIER}
                 />
-                <Link
-                  href="/builder"
-                  className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-6 py-2 rounded-lg text-sm font-medium hover:from-blue-700 hover:to-purple-700 transition-all duration-200 shadow-lg hover:shadow-xl"
-                >
-                  Get Started
+                <Link href="/builder" className="btn-ink ml-3 px-5 py-2 text-sm">
+                  Start a resume
                 </Link>
               </div>
             ) : (
-              <div className="ml-10 flex items-baseline space-x-1">
+              <div className="ml-10 flex items-center gap-1">
                 {APP_LINKS.map((link) => (
                   <Link
                     key={link.href}
                     href={link.href}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                      pathname === link.href
-                        ? 'bg-blue-600 text-white'
-                        : 'text-gray-600 hover:text-blue-600 hover:bg-blue-50'
-                    }`}
+                    className={pathname === link.href ? DESK_LINK_ACTIVE : DESK_LINK}
                   >
                     {link.label}
                   </Link>
                 ))}
                 <AuthNavItem
                   auth={auth}
-                  signInClassName="px-4 py-2 rounded-lg text-sm font-medium transition-colors text-gray-600 hover:text-blue-600 hover:bg-blue-50"
-                  accountClassName={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                    pathname === '/account'
-                      ? 'bg-blue-600 text-white'
-                      : 'text-gray-600 hover:text-blue-600 hover:bg-blue-50'
-                  }`}
-                  pillClassName={pathname === '/account' ? PILL_ON_ACTIVE : PILL_GRADIENT}
+                  signInClassName={DESK_LINK}
+                  accountClassName={pathname === '/account' ? DESK_LINK_ACTIVE : DESK_LINK}
+                  pillClassName={PILL_TIER}
                 />
               </div>
             )}
@@ -153,7 +175,7 @@ export function Navigation() {
           <div className="md:hidden">
             <button
               onClick={() => setIsMenuOpen(!isMenuOpen)}
-              className="text-gray-600 hover:text-gray-900 focus:outline-none focus:text-gray-900"
+              className="p-1 text-ink-soft hover:text-ink transition-colors"
               aria-label="Toggle menu"
               aria-expanded={isMenuOpen}
               aria-controls="mobile-menu"
@@ -174,8 +196,8 @@ export function Navigation() {
 
       {/* Mobile menu */}
       {isMenuOpen && (
-        <div className="md:hidden" id="mobile-menu">
-          <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3 bg-white shadow-lg">
+        <div className="md:hidden animate-modal-panel" id="mobile-menu">
+          <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3 bg-paper border-t border-rule">
             {isLanding ? (
               <>
                 {MARKETING_LINKS.map((link) => (
@@ -183,20 +205,17 @@ export function Navigation() {
                     key={link.href}
                     href={link.href}
                     label={link.label}
-                    className="text-gray-600 hover:text-gray-900 block px-3 py-2 rounded-md text-base font-medium"
+                    className={MOBILE_LINK}
                   />
                 ))}
                 <AuthNavItem
                   auth={auth}
-                  signInClassName="text-gray-600 hover:text-gray-900 block px-3 py-2 rounded-md text-base font-medium"
-                  accountClassName="text-gray-600 hover:text-gray-900 block px-3 py-2 rounded-md text-base font-medium"
-                  pillClassName={PILL_GRADIENT}
+                  signInClassName={MOBILE_LINK}
+                  accountClassName={MOBILE_LINK}
+                  pillClassName={PILL_TIER}
                 />
-                <Link
-                  href="/builder"
-                  className="bg-gradient-to-r from-blue-600 to-purple-600 text-white block px-3 py-2 rounded-md text-base font-medium"
-                >
-                  Get Started
+                <Link href="/builder" className="btn-ink block px-3 py-2.5 text-base">
+                  Start a resume
                 </Link>
               </>
             ) : (
@@ -205,24 +224,16 @@ export function Navigation() {
                   <Link
                     key={link.href}
                     href={link.href}
-                    className={`block px-3 py-2 rounded-md text-base font-medium transition-colors ${
-                      pathname === link.href
-                        ? 'bg-blue-600 text-white'
-                        : 'text-gray-600 hover:text-gray-900'
-                    }`}
+                    className={pathname === link.href ? MOBILE_LINK_ACTIVE : MOBILE_LINK}
                   >
                     {link.label}
                   </Link>
                 ))}
                 <AuthNavItem
                   auth={auth}
-                  signInClassName="block px-3 py-2 rounded-md text-base font-medium transition-colors text-gray-600 hover:text-gray-900"
-                  accountClassName={`block px-3 py-2 rounded-md text-base font-medium transition-colors ${
-                    pathname === '/account'
-                      ? 'bg-blue-600 text-white'
-                      : 'text-gray-600 hover:text-gray-900'
-                  }`}
-                  pillClassName={pathname === '/account' ? PILL_ON_ACTIVE : PILL_GRADIENT}
+                  signInClassName={MOBILE_LINK}
+                  accountClassName={pathname === '/account' ? MOBILE_LINK_ACTIVE : MOBILE_LINK}
+                  pillClassName={pathname === '/account' ? PILL_ON_ACTIVE : PILL_TIER}
                 />
               </>
             )}
