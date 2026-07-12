@@ -2,10 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
 import { checkRateLimit } from '@/utils/rateLimit';
 import {
-  getOpenAIKey,
   openAIErrorResponse,
   parseJsonBody,
   rateLimitResponse,
+  resolveOpenAIKey,
 } from '@/utils/apiHelpers';
 import {
   MAX_JOB_DESCRIPTION_CHARS,
@@ -14,6 +14,9 @@ import {
 } from '@/config/apiLimits';
 
 export async function POST(request: NextRequest) {
+  // Non-null once resolveOpenAIKey consumed a quota op: every failure exit
+  // after that point must refund it so users only pay for delivered results.
+  let refundQuota: (() => Promise<void>) | null = null;
   try {
     // Rate limit before doing any work — this route can spend the server's OpenAI key
     const rateLimit = checkRateLimit(request, { limit: 10, windowMs: 60000, bucket: 'generate-cover-letter' });
@@ -69,15 +72,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get API key from Authorization header or environment
-    const apiKey = getOpenAIKey(request);
-
-    if (!apiKey) {
-      return NextResponse.json(
-        { error: 'OpenAI API key is required' },
-        { status: 401 }
-      );
+    // Resolve the key AFTER validation so invalid requests never burn quota:
+    // user's own key (free), or the server key gated by paid-tier quota.
+    const keyResult = await resolveOpenAIKey(request);
+    if (keyResult.errorResponse) {
+      return keyResult.errorResponse;
     }
+    const apiKey = keyResult.apiKey;
+    refundQuota = keyResult.refundQuota;
 
     // Initialize OpenAI client with the provided API key
     const openai = new OpenAI({
@@ -124,6 +126,7 @@ export async function POST(request: NextRequest) {
     });
 
     if (completion.choices[0].finish_reason === 'length') {
+      if (refundQuota) await refundQuota();
       return NextResponse.json(
         { error: 'The generated cover letter was cut off. Please try a shorter job description or resume.' },
         { status: 422 }
@@ -139,6 +142,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ coverLetter });
   } catch (error) {
     console.error('Error in cover letter generation:', error);
+
+    // The OpenAI call failed after quota was spent — give the op back.
+    if (refundQuota) await refundQuota();
 
     const openAIError = openAIErrorResponse(error);
     if (openAIError) {

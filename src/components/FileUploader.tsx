@@ -96,10 +96,9 @@ export function FileUploader({ onFileSelect, selectedFile, accept = RESUME_ACCEP
 
   return (
     <div
-      className={`border-2 border-dashed rounded-lg mt-1 min-h-[200px] py-8 flex items-center justify-center ${
-        !isDragging ? 'border-gray-300 hover:border-gray-400' : ''
+      className={`border-2 border-dashed rounded-[3px] mt-1 min-h-[200px] py-8 flex items-center justify-center transition-colors ${
+        isDragging ? 'border-pen bg-pen-wash' : 'border-rule hover:border-ink/40 bg-paper'
       }`}
-      style={isDragging ? { borderColor: '#6366f1', backgroundColor: '#eef2ff' } : {}}
       onDragEnter={handleDragEnter}
       onDragLeave={handleDragLeave}
       onDragOver={handleDragOver}
@@ -116,26 +115,21 @@ export function FileUploader({ onFileSelect, selectedFile, accept = RESUME_ACCEP
         htmlFor={inputId}
         className="cursor-pointer inline-flex flex-col items-center p-6 text-center"
       >
-        <svg
-          className="w-12 h-12 text-gray-400 mb-4"
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
-          />
+        {/* A sheet, not a cloud — a résumé goes here. */}
+        <svg className="w-7 h-7 mb-3" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+          <rect x="8.5" y="4.5" width="17" height="22" rx="2" fill="#ffffff" stroke="rgb(22 24 29 / 0.3)" strokeWidth="1.5" />
+          <rect x="5.5" y="7.5" width="17" height="22" rx="2" fill="#ffffff" stroke="#16181d" strokeWidth="1.5" />
+          <rect x="9" y="13" width="10.5" height="1.6" rx="0.8" fill="#4b41d6" />
+          <rect x="9" y="17" width="8" height="1.4" rx="0.7" fill="rgb(22 24 29 / 0.28)" />
+          <rect x="9" y="20.5" width="10" height="1.4" rx="0.7" fill="rgb(22 24 29 / 0.28)" />
         </svg>
-        <span className="text-gray-600 text-base mb-2">
+        <span className="text-ink text-sm font-medium mb-2">
           {selectedFile
             ? selectedFile.name
             : 'Drop your resume here, or click to select'}
         </span>
-        <span className="text-sm text-gray-500">
-          Supported formats: {formatsLabel}
+        <span className="font-mono text-xs text-ink-soft">
+          <span className="text-pen">[accepts]</span> {formatsLabel}
         </span>
       </label>
     </div>

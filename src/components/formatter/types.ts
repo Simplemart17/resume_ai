@@ -6,4 +6,5 @@ export interface FormattedResult {
   missingSkills: string[];
 }
 
-export type FormatterTab = 'resume' | 'analysis' | 'templates' | 'autofill' | 'dashboard';
+/** The result itself is always shown; these are the "next steps" beneath it. */
+export type FormatterTab = 'coverLetter' | 'templates' | 'autofill';

@@ -3,174 +3,147 @@ interface TemplatePreviewProps {
   className?: string;
 }
 
-export function TemplatePreview({ templateId, className = "" }: TemplatePreviewProps) {
-  const getPreviewContent = () => {
+/* A faint body-text line. Widths vary so the miniature reads as set copy,
+   not a loading skeleton. */
+function Line({ w = '100%', tone = 'ink' }: { w?: string; tone?: 'ink' | 'soft' }) {
+  return (
+    <div
+      className={`h-[3px] rounded-[1px] ${tone === 'ink' ? 'bg-ink/18' : 'bg-ink/10'}`}
+      style={{ width: w }}
+    />
+  );
+}
+
+/* A mono section opener, set small like a real résumé heading. */
+function Head({ children, className = '' }: { children: React.ReactNode; className?: string }) {
+  return (
+    <p
+      className={`font-mono text-[5px] font-semibold uppercase tracking-[0.14em] text-ink-soft ${className}`}
+    >
+      {children}
+    </p>
+  );
+}
+
+/**
+ * A miniature of the ACTUAL typeset output, on-palette (ink/paper/rule/pen/mark)
+ * — never gray-bar wireframes. The four templates differ by structure (column
+ * count, header alignment, accent, margins), and each shows one matched keyword
+ * swept in `mark` to reinforce "what the machine reads."
+ */
+export function TemplatePreview({ templateId, className = '' }: TemplatePreviewProps) {
+  const sheet = (inner: React.ReactNode, pad = 'p-4') => (
+    <div className={`bg-paper border border-rule rounded-[3px] h-full overflow-hidden ${pad}`}>
+      {inner}
+    </div>
+  );
+
+  const content = () => {
     switch (templateId) {
+      // Single column, left header with a pen accent rule under the name.
       case 'modern-professional':
-        return (
-          <div className="bg-white p-3 rounded-lg shadow-sm border h-full">
-            {/* Header with blue accent */}
-            <div className="bg-blue-600 text-white p-2 rounded-t-lg mb-2">
-              <div className="h-3 bg-white/90 rounded mb-1"></div>
-              <div className="h-2 bg-white/70 rounded w-2/3"></div>
+        return sheet(
+          <div className="flex flex-col gap-2.5">
+            <div>
+              <p className="font-display text-[10px] font-bold leading-none text-ink">Amara Okafor</p>
+              <p className="font-mono text-[5px] text-ink-soft mt-1">product engineer · lagos</p>
+              <div className="mt-1.5 h-[2px] w-8 bg-pen rounded-full" />
             </div>
-            
-            {/* Content sections */}
-            <div className="space-y-2">
-              <div>
-                <div className="h-2 bg-blue-600 rounded w-1/3 mb-1"></div>
-                <div className="h-1.5 bg-gray-300 rounded mb-0.5"></div>
-                <div className="h-1.5 bg-gray-300 rounded w-4/5"></div>
-              </div>
-              
-              <div>
-                <div className="h-2 bg-blue-600 rounded w-1/4 mb-1"></div>
-                <div className="h-1.5 bg-gray-300 rounded mb-0.5"></div>
-                <div className="h-1.5 bg-gray-300 rounded w-3/4"></div>
-              </div>
-              
-              <div className="flex gap-1">
-                <div className="h-1.5 bg-blue-200 rounded-full px-2 w-1/4"></div>
-                <div className="h-1.5 bg-blue-200 rounded-full px-2 w-1/4"></div>
-                <div className="h-1.5 bg-blue-200 rounded-full px-2 w-1/4"></div>
+            <div className="space-y-1">
+              <Head>Experience</Head>
+              <Line w="100%" />
+              <Line w="88%" />
+              <Line w="72%" tone="soft" />
+            </div>
+            <div className="space-y-1">
+              <Head>Skills</Head>
+              <div className="flex flex-wrap gap-1 items-center">
+                <span className="mark-hit font-mono text-[5px] leading-tight">kubernetes</span>
+                <Line w="18px" /><Line w="22px" tone="soft" />
               </div>
             </div>
           </div>
         );
 
+      // Centered header, ruled, two-column body — conservative, ink only.
       case 'classic-traditional':
-        return (
-          <div className="bg-white p-3 rounded-lg shadow-sm border h-full">
-            {/* Header */}
-            <div className="text-center border-b border-gray-300 pb-2 mb-2">
-              <div className="h-3 bg-gray-800 rounded mb-1 mx-auto w-2/3"></div>
-              <div className="h-2 bg-gray-500 rounded mx-auto w-1/2"></div>
+        return sheet(
+          <div className="flex flex-col gap-2.5">
+            <div className="text-center pb-1.5 border-b border-rule">
+              <p className="font-display text-[10px] font-bold leading-none text-ink">Amara Okafor</p>
+              <p className="font-mono text-[5px] text-ink-soft mt-1">amara@okafor.dev · lagos</p>
             </div>
-            
-            {/* Two column layout */}
-            <div className="grid grid-cols-3 gap-2">
-              <div className="col-span-2 space-y-2">
-                <div>
-                  <div className="h-2 bg-gray-800 rounded w-1/2 mb-1"></div>
-                  <div className="h-1.5 bg-gray-300 rounded mb-0.5"></div>
-                  <div className="h-1.5 bg-gray-300 rounded w-4/5"></div>
-                </div>
-                
-                <div>
-                  <div className="h-2 bg-gray-800 rounded w-1/3 mb-1"></div>
-                  <div className="h-1.5 bg-gray-300 rounded mb-0.5"></div>
-                  <div className="h-1.5 bg-gray-300 rounded w-3/4"></div>
-                </div>
+            <div className="grid grid-cols-[1.6fr_1fr] gap-2.5">
+              <div className="space-y-1">
+                <Head>Experience</Head>
+                <Line w="100%" /><Line w="92%" /><Line w="66%" tone="soft" />
               </div>
-              
-              <div className="space-y-2">
-                <div>
-                  <div className="h-2 bg-gray-800 rounded w-full mb-1"></div>
-                  <div className="h-1.5 bg-gray-300 rounded mb-0.5"></div>
-                  <div className="h-1.5 bg-gray-300 rounded"></div>
-                </div>
-                
-                <div>
-                  <div className="h-2 bg-gray-800 rounded w-3/4 mb-1"></div>
-                  <div className="h-1.5 bg-gray-300 rounded mb-0.5"></div>
-                  <div className="h-1.5 bg-gray-300 rounded w-2/3"></div>
-                </div>
+              <div className="space-y-1">
+                <Head>Skills</Head>
+                <span className="mark-hit font-mono text-[5px] leading-tight">terraform</span>
+                <Line w="80%" tone="soft" />
               </div>
             </div>
           </div>
         );
 
+      // Single column with a pen sidebar stripe + pen section labels.
       case 'creative-designer':
-        return (
-          <div className="bg-white p-3 rounded-lg shadow-sm border h-full">
-            {/* Creative header with pink accent */}
-            <div className="bg-gradient-to-r from-pink-500 to-orange-500 text-white p-2 rounded-lg mb-2">
-              <div className="h-3 bg-white/90 rounded mb-1"></div>
-              <div className="h-2 bg-white/70 rounded w-2/3"></div>
-            </div>
-            
-            {/* Creative layout */}
-            <div className="space-y-2">
-              <div className="flex gap-2">
-                <div className="w-1 bg-pink-500 rounded"></div>
-                <div className="flex-1">
-                  <div className="h-2 bg-pink-500 rounded w-1/3 mb-1"></div>
-                  <div className="h-1.5 bg-gray-300 rounded mb-0.5"></div>
-                  <div className="h-1.5 bg-gray-300 rounded w-4/5"></div>
-                </div>
+        return sheet(
+          <div className="flex gap-2 h-full">
+            <div className="w-[3px] rounded-full bg-pen shrink-0" />
+            <div className="flex flex-col gap-2.5 flex-1">
+              <div>
+                <p className="font-display text-[10px] font-bold leading-none text-ink">Amara Okafor</p>
+                <p className="font-mono text-[5px] text-pen mt-1">product designer</p>
               </div>
-              
-              <div className="flex gap-2">
-                <div className="w-1 bg-orange-500 rounded"></div>
-                <div className="flex-1">
-                  <div className="h-2 bg-orange-500 rounded w-1/4 mb-1"></div>
-                  <div className="h-1.5 bg-gray-300 rounded mb-0.5"></div>
-                  <div className="h-1.5 bg-gray-300 rounded w-3/4"></div>
-                </div>
+              <div className="space-y-1">
+                <Head className="text-pen">Experience</Head>
+                <Line w="100%" /><Line w="84%" />
               </div>
-              
-              <div className="flex gap-1 justify-center">
-                <div className="h-1.5 bg-pink-300 rounded-full w-4"></div>
-                <div className="h-1.5 bg-orange-300 rounded-full w-4"></div>
-                <div className="h-1.5 bg-pink-300 rounded-full w-4"></div>
+              <div className="space-y-1">
+                <Head className="text-pen">Skills</Head>
+                <div className="flex flex-wrap gap-1 items-center">
+                  <span className="mark-hit font-mono text-[5px] leading-tight">figma</span>
+                  <Line w="20px" tone="soft" />
+                </div>
               </div>
             </div>
           </div>
         );
 
+      // Wide margins, centered header, roomy — senior.
       case 'executive-premium':
-        return (
-          <div className="bg-white p-3 rounded-lg shadow-sm border h-full">
-            {/* Executive header */}
-            <div className="border-b-2 border-indigo-600 pb-2 mb-2">
-              <div className="h-3 bg-gray-900 rounded mb-1 w-2/3"></div>
-              <div className="h-2 bg-gray-600 rounded w-1/2"></div>
+        return sheet(
+          <div className="flex flex-col gap-3 px-2">
+            <div className="text-center pb-2 border-b-2 border-ink/70">
+              <p className="font-display text-[11px] font-bold leading-none tracking-tight text-ink">
+                Amara Okafor
+              </p>
+              <p className="font-mono text-[5px] uppercase tracking-[0.2em] text-ink-soft mt-1.5">
+                Vice President · Engineering
+              </p>
             </div>
-            
-            {/* Executive content */}
-            <div className="space-y-2">
-              <div>
-                <div className="h-2 bg-indigo-600 rounded w-1/3 mb-1"></div>
-                <div className="h-1.5 bg-gray-300 rounded mb-0.5"></div>
-                <div className="h-1.5 bg-gray-300 rounded w-4/5"></div>
-                <div className="h-1.5 bg-gray-300 rounded w-3/4"></div>
-              </div>
-              
-              <div>
-                <div className="h-2 bg-indigo-600 rounded w-1/4 mb-1"></div>
-                <div className="h-1.5 bg-gray-300 rounded mb-0.5"></div>
-                <div className="h-1.5 bg-gray-300 rounded w-4/5"></div>
-              </div>
-              
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <div className="h-2 bg-indigo-600 rounded w-full mb-1"></div>
-                  <div className="h-1.5 bg-gray-300 rounded"></div>
-                </div>
-                <div>
-                  <div className="h-2 bg-indigo-600 rounded w-3/4 mb-1"></div>
-                  <div className="h-1.5 bg-gray-300 rounded w-2/3"></div>
-                </div>
+            <div className="space-y-1.5">
+              <Head className="text-center">Summary</Head>
+              <Line w="100%" /><Line w="90%" tone="soft" />
+            </div>
+            <div className="space-y-1">
+              <Head className="text-center">Leadership</Head>
+              <div className="flex justify-center">
+                <span className="mark-hit font-mono text-[5px] leading-tight">strategy</span>
               </div>
             </div>
-          </div>
+          </div>,
+          'p-4 pt-3'
         );
 
       default:
-        return (
-          <div className="bg-gray-100 p-3 rounded-lg h-full flex items-center justify-center">
-            <div className="text-gray-500 text-xs text-center">
-              <div className="w-8 h-8 bg-gray-300 rounded mb-1 mx-auto"></div>
-              Preview
-            </div>
-          </div>
+        return sheet(
+          <div className="paper-rule h-full rounded-[2px] opacity-40" />
         );
     }
   };
 
-  return (
-    <div className={`${className} transition-transform duration-200 hover:scale-[1.02]`}>
-      {getPreviewContent()}
-    </div>
-  );
+  return <div className={className}>{content()}</div>;
 }

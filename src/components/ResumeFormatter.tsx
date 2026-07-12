@@ -5,20 +5,20 @@ import DOMPurify from 'dompurify';
 import { ApiKeyManager } from './ApiKeyManager';
 import { NewResumeTemplates } from './NewResumeTemplates';
 import { JobApplicationFiller } from './JobApplicationFiller';
-import { motion } from 'framer-motion';
 import { apiKeyManager } from '@/utils/apiKeyManager';
+import { useUserTier } from '@/lib/useUserTier';
 import toast from 'react-hot-toast';
 import {
   MAX_RESUME_CHARS,
   MAX_JOB_DESCRIPTION_CHARS,
   MAX_TITLE_COMPANY_CHARS,
 } from '@/config/apiLimits';
+import { PageHeader } from './PageHeader';
 import { FormattedResult, FormatterTab } from './formatter/types';
 import { OptimizeForm } from './formatter/OptimizeForm';
-import { ResultTabs } from './formatter/ResultTabs';
 import { OptimizedResumePanel } from './formatter/OptimizedResumePanel';
-import { AnalysisPanel } from './formatter/AnalysisPanel';
-import { DashboardPanel } from './formatter/DashboardPanel';
+import { CoverLetterPanel } from './formatter/CoverLetterPanel';
+import { ScoringTheater } from './formatter/ScoringTheater';
 
 export function ResumeFormatter() {
   const [resumeFile, setResumeFile] = useState<File | null>(null);
@@ -29,11 +29,12 @@ export function ResumeFormatter() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<FormattedResult | null>(null);
   const [error, setError] = useState('');
-  const [activeTab, setActiveTab] = useState<FormatterTab>('resume');
+  const [activeTab, setActiveTab] = useState<FormatterTab>('coverLetter');
   const [coverLetter, setCoverLetter] = useState<string>('');
   const [generatingCoverLetter, setGeneratingCoverLetter] = useState(false);
   const [coverLetterError, setCoverLetterError] = useState<string | null>(null);
   const [hasApiKey, setHasApiKey] = useState(false);
+  const { accountsEnabled } = useUserTier();
 
   useEffect(() => {
     setHasApiKey(apiKeyManager.hasApiKey());
@@ -67,8 +68,11 @@ export function ResumeFormatter() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Only check for API key in production
-    if (process.env.NODE_ENV === 'production' && !hasApiKey) {
+    // Pre-block only in production WITHOUT accounts, where a browser key is
+    // genuinely the only way a request can succeed. With accounts enabled,
+    // paid tiers may use the server key with no browser key at all — send
+    // the request and let the server's 401/403/429 messages guide the user.
+    if (process.env.NODE_ENV === 'production' && !hasApiKey && !accountsEnabled) {
       toast.error('Please provide an OpenAI API key to use AI features');
       return;
     }
@@ -188,24 +192,20 @@ export function ResumeFormatter() {
 
   return (
     <div className="max-w-6xl mx-auto">
-      {/* Header */}
-      <div
-        className="py-8 px-6 rounded-t-xl text-white"
-        style={{
-          background: 'linear-gradient(135deg, rgb(79, 70, 229) 0%, rgb(147, 51, 234) 50%, rgb(236, 72, 153) 100%)'
-        }}
-      >
-        <h1 className="text-4xl font-bold text-center mb-2">AI Resume Optimizer Pro</h1>
-        <p className="text-center opacity-90 text-lg">Transform your resume with AI-powered optimization, templates, and job application tools</p>
-      </div>
+      <PageHeader
+        eyebrow="AI optimizer"
+        title="Score your resume against the job"
+        sub="Upload your resume and paste the posting. The parser scores the match, shows the keywords it found — and the ones it didn't."
+        strip={{ token: 'ats', text: 'paste a posting · get the machine’s read · fix it before you apply' }}
+      />
 
-      <div className="bg-white shadow-xl rounded-b-xl">
+      <div className="paper">
         {/* API Key Management */}
-        <div className="p-6 border-b border-gray-200">
+        <div className="p-6 sm:p-8 border-b border-rule">
           <ApiKeyManager onApiKeySet={setHasApiKey} />
         </div>
         {/* Main Form */}
-        <div className="p-6">
+        <div className="p-6 sm:p-8">
           <OptimizeForm
             resumeFile={resumeFile}
             onFileChange={handleFileChange}
@@ -219,58 +219,89 @@ export function ResumeFormatter() {
             error={error}
             onSubmit={handleSubmit}
           />
-
-        {result && (
-          <motion.div
-            className="mt-12"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.2 }}
-          >
-            <ResultTabs
-              activeTab={activeTab}
-              onTabChange={setActiveTab}
-              generatingCoverLetter={generatingCoverLetter}
-              hasCoverLetter={!!coverLetter}
-              onGenerateCoverLetter={handleGenerateCoverLetter}
-            />
-
-            {/* Tab Content */}
-            {activeTab === 'resume' ? (
-              <OptimizedResumePanel
-                optimizedResume={result.optimizedResume}
-                safeCoverLetter={safeCoverLetter}
-                coverLetterError={coverLetterError}
-              />
-            ) : activeTab === 'analysis' ? (
-              <AnalysisPanel result={result} />
-            ) : activeTab === 'dashboard' ? (
-              <DashboardPanel result={result} />
-            ) : activeTab === 'templates' ? (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ duration: 0.3 }}
-              >
-                <NewResumeTemplates
-                  resumeText={result?.optimizedResume || resumeText}
-                />
-              </motion.div>
-            ) : activeTab === 'autofill' ? (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ duration: 0.3 }}
-              >
-                <JobApplicationFiller
-                  resumeText={result?.optimizedResume || resumeText}
-                />
-              </motion.div>
-            ) : null}
-          </motion.div>
-        )}
         </div>
       </div>
+
+      {loading && <ScoringTheater />}
+
+      {!loading && result && (
+        <div className="mt-10 space-y-12">
+          {/* The one canonical result: the annotated document + marginalia. */}
+          <OptimizedResumePanel result={result} />
+
+          {/* Next steps — clearly separated from the result itself. */}
+          <section aria-label="Next steps">
+            <p className="eyebrow eyebrow-rule mb-6">
+              <span>Next steps</span>
+            </p>
+
+            <div className="mb-8 flex flex-wrap gap-2" role="tablist">
+              {NEXT_STEPS.map((step) => (
+                <button
+                  key={step.id}
+                  role="tab"
+                  aria-selected={activeTab === step.id}
+                  onClick={() => setActiveTab(step.id)}
+                  className={`rounded-[3px] px-4 py-2 font-mono text-xs font-medium uppercase tracking-[0.12em] border transition-colors ${
+                    activeTab === step.id
+                      ? 'border-pen bg-pen-wash text-pen'
+                      : 'border-rule bg-paper text-ink-soft hover:text-ink hover:border-ink/40'
+                  }`}
+                >
+                  {step.label}
+                </button>
+              ))}
+            </div>
+
+            {activeTab === 'coverLetter' && (
+              <div className="space-y-6">
+                <div className="paper flex flex-col gap-4 p-6 sm:flex-row sm:items-center sm:justify-between sm:p-8">
+                  <div>
+                    <h3 className="font-display text-lg font-semibold tracking-tight text-ink">
+                      Draft a matching cover letter
+                    </h3>
+                    <p className="mt-1 text-sm text-ink-soft">
+                      Grounded in your optimized résumé and the posting — edit before you send.
+                    </p>
+                  </div>
+                  <button
+                    onClick={handleGenerateCoverLetter}
+                    disabled={generatingCoverLetter}
+                    className="btn-pen shrink-0 px-5 py-2.5 text-sm"
+                  >
+                    {generatingCoverLetter
+                      ? 'Generating…'
+                      : coverLetter
+                        ? 'Regenerate letter'
+                        : 'Generate cover letter'}
+                  </button>
+                </div>
+
+                {coverLetterError && (
+                  <p className="text-sm text-fail" role="alert">
+                    {coverLetterError}
+                  </p>
+                )}
+                {safeCoverLetter && <CoverLetterPanel safeCoverLetter={safeCoverLetter} />}
+              </div>
+            )}
+
+            {activeTab === 'templates' && (
+              <NewResumeTemplates resumeText={result.optimizedResume || resumeText} />
+            )}
+
+            {activeTab === 'autofill' && (
+              <JobApplicationFiller resumeText={result.optimizedResume || resumeText} />
+            )}
+          </section>
+        </div>
+      )}
     </div>
   );
 }
+
+const NEXT_STEPS: { id: FormatterTab; label: string }[] = [
+  { id: 'coverLetter', label: 'Cover letter' },
+  { id: 'templates', label: 'Templates' },
+  { id: 'autofill', label: 'Auto-fill' },
+];
