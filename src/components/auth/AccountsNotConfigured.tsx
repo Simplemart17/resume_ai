@@ -7,17 +7,21 @@ import Link from 'next/link';
  */
 export function AccountsNotConfigured({ description }: { description: string }) {
   return (
-    <div className="w-full max-w-md mx-auto bg-white rounded-xl shadow-lg p-8 text-center">
-      <h1 className="text-xl font-bold text-gray-900 mb-2">
-        Accounts are not configured on this deployment
-      </h1>
-      <p className="text-gray-600 text-sm mb-6">{description}</p>
-      <Link
-        href="/"
-        className="inline-block bg-gradient-to-r from-blue-600 to-purple-600 text-white px-6 py-2 rounded-lg text-sm font-medium hover:from-blue-700 hover:to-purple-700 transition-all duration-200 shadow-lg hover:shadow-xl"
-      >
-        Back to home
-      </Link>
+    <div className="w-full max-w-md mx-auto ink-panel overflow-hidden">
+      <div className="p-8">
+        <p className="eyebrow mb-3 text-paper/60">Operator mode</p>
+        <h1 className="font-display text-xl font-semibold tracking-tight text-paper mb-2">
+          Accounts aren&apos;t configured here
+        </h1>
+        <p className="text-paper/70 text-sm mb-6">{description}</p>
+        <Link href="/" className="btn-pen px-6 py-2.5 text-sm">
+          Back to home
+        </Link>
+      </div>
+      <div className="machine-strip machine-strip--ink">
+        <span className="machine-token">[accounts]</span>
+        <span>disabled · all free features still work</span>
+      </div>
     </div>
   );
 }

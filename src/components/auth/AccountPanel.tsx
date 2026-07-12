@@ -7,6 +7,7 @@ import { TIERS, PAID_TIERS, PaidTier, Tier, isTier, isPaidTier, tierRank } from 
 import { startCheckout } from '@/lib/checkout';
 import { fetchMe, refreshMe, MeData } from '@/lib/me';
 import { AccountsNotConfigured } from './AccountsNotConfigured';
+import { PageHeader } from '../PageHeader';
 
 /** A purchase created within this window is treated as the one the user just
  * completed — the signal that webhook fulfillment has landed. */
@@ -24,10 +25,10 @@ function fulfillmentLanded(data: MeData): boolean {
 function TierBadge({ tier }: { tier: Tier }) {
   return (
     <span
-      className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${
+      className={`inline-flex items-center px-2.5 py-0.5 rounded-full font-mono text-[11px] font-semibold uppercase tracking-wider ${
         isPaidTier(tier)
-          ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white'
-          : 'bg-gray-100 text-gray-700'
+          ? 'bg-pen text-paper'
+          : 'bg-bench text-ink-soft border border-rule'
       }`}
     >
       {TIERS[tier].name}
@@ -153,7 +154,7 @@ export function AccountPanel() {
     return (
       <div className="flex items-center justify-center py-32">
         <div
-          className="h-8 w-8 rounded-full border-2 border-blue-600 border-t-transparent animate-spin"
+          className="h-8 w-8 rounded-full border-2 border-pen border-t-transparent animate-spin"
           role="status"
           aria-label="Loading account"
         />
@@ -170,52 +171,55 @@ export function AccountPanel() {
   const upgrades = PAID_TIERS.filter((t) => tierRank(t) > tierRank(tier));
 
   return (
-    <div className="max-w-2xl mx-auto px-4 py-12 space-y-6">
-      <h1 className="text-3xl font-bold text-gray-900">Account</h1>
+    <div className="max-w-5xl mx-auto px-4 py-12 space-y-6">
+      <PageHeader
+        eyebrow="Account"
+        title="Your account"
+        strip={{ token: 'account', text: 'plan · usage · purchase history' }}
+      />
 
       {checkoutSuccess && (
-        <div className="px-4 py-3 rounded-lg bg-green-50 border border-green-200 text-sm text-green-800">
-          Payment received! Your plan upgrades within a few seconds — refresh if you don&apos;t
+        <div className="px-4 py-3 rounded-[3px] bg-pass/10 border border-pass/30 text-sm text-pass">
+          Payment received. Your plan upgrades within a few seconds — refresh if you don&apos;t
           see it yet.
         </div>
       )}
 
       {/* Profile */}
-      <div className="bg-white rounded-xl shadow p-6">
+      <div className="paper p-6">
         <div className="flex items-center justify-between gap-4 flex-wrap">
           <div>
-            <p className="text-sm text-gray-500">Signed in as</p>
-            <p className="text-gray-900 font-medium">{user.email}</p>
+            <p className="eyebrow mb-1">Signed in as</p>
+            <p className="text-ink font-medium break-all">{user.email}</p>
           </div>
           <button
             type="button"
             onClick={handleSignOut}
             disabled={signingOut}
-            className="px-4 py-2 rounded-lg text-sm font-medium border border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-60"
+            className="btn-ghost px-4 py-2 text-sm"
           >
             {signingOut ? 'Signing out…' : 'Sign out'}
           </button>
         </div>
       </div>
 
-      {/* Current plan */}
-      <div className="bg-white rounded-xl shadow p-6">
+      <div className="grid gap-6 lg:grid-cols-[1.4fr_1fr] lg:items-start">
+      {/* Current plan — heroed with a pen frame for paid tiers. */}
+      <div className={`paper p-6 ${isPaidTier(tier) ? 'border-2 border-pen' : ''}`}>
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-gray-900">Your plan</h2>
+          <div>
+            <p className="eyebrow mb-1">Current plan</p>
+            <h2 className="font-display text-2xl font-bold tracking-tight text-ink">
+              {TIERS[tier].name}
+            </h2>
+          </div>
           <TierBadge tier={tier} />
         </div>
 
         <ul className="space-y-2 mb-6">
           {TIERS[tier].features.map((feature) => (
-            <li key={feature} className="flex items-start gap-2 text-sm text-gray-600">
-              <svg
-                className="h-5 w-5 text-green-500 flex-shrink-0"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-              </svg>
+            <li key={feature} className="flex items-start gap-2.5 text-sm text-ink">
+              <span className="ok-token mt-0.5 shrink-0" aria-hidden="true">✓</span>
               {feature}
             </li>
           ))}
@@ -223,15 +227,14 @@ export function AccountPanel() {
 
         {quota > 0 && (
           <div className="mb-6">
-            <div className="flex items-center justify-between text-sm mb-1.5">
-              <span className="font-medium text-gray-700">AI usage this month</span>
-              <span className="text-gray-500">
-                {aiUsed} / {quota}
-              </span>
+            <div className="machine-strip rounded-[3px] border border-rule">
+              <span className="machine-token">[quota]</span>
+              <span className="tabular-nums">{aiUsed}/{quota}</span>
+              <span>AI ops used this month</span>
             </div>
-            <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+            <div className="mt-2 h-2 bg-bench border border-rule rounded-[2px] overflow-hidden">
               <div
-                className="h-full bg-gradient-to-r from-blue-600 to-purple-600 rounded-full transition-all"
+                className="h-full bg-pen transition-all"
                 style={{ width: `${Math.min(100, (aiUsed / quota) * 100)}%` }}
               />
             </div>
@@ -239,10 +242,10 @@ export function AccountPanel() {
         )}
 
         {upgrades.length > 0 && (
-          <div className="border-t border-gray-200 pt-4">
-            <p className="text-sm font-medium text-gray-700 mb-3">Upgrade</p>
+          <div className="border-t border-rule pt-4">
+            <p className="eyebrow mb-3">Upgrade</p>
             {checkoutError && (
-              <div className="mb-3 px-4 py-3 rounded-lg bg-red-50 border border-red-200 text-sm text-red-700">
+              <div className="mb-3 px-4 py-3 rounded-[3px] bg-fail/10 border border-fail/30 text-sm text-fail">
                 {checkoutError}
               </div>
             )}
@@ -253,7 +256,7 @@ export function AccountPanel() {
                   type="button"
                   onClick={() => handleUpgrade(t)}
                   disabled={upgrading !== null}
-                  className="flex-1 bg-gradient-to-r from-blue-600 to-purple-600 text-white px-4 py-2.5 rounded-lg text-sm font-medium hover:from-blue-700 hover:to-purple-700 transition-all duration-200 shadow-lg hover:shadow-xl disabled:opacity-60 disabled:cursor-not-allowed"
+                  className="btn-pen flex-1 px-4 py-2.5 text-sm"
                 >
                   {upgrading === t
                     ? 'Redirecting…'
@@ -261,28 +264,31 @@ export function AccountPanel() {
                 </button>
               ))}
             </div>
-            <p className="text-xs text-gray-500 mt-2">One-time payment</p>
+            <p className="font-mono text-xs text-ink-soft mt-2">One-time payment</p>
           </div>
         )}
       </div>
 
       {/* Purchase history */}
-      <div className="bg-white rounded-xl shadow p-6">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">Purchase history</h2>
+      <div className="paper p-6">
+        <h2 className="font-display text-lg font-semibold tracking-tight text-ink mb-4">Purchase history</h2>
         {purchases.length === 0 ? (
-          <p className="text-sm text-gray-500">No purchases yet.</p>
+          <div className="machine-strip rounded-[3px] border border-rule">
+            <span className="machine-token">[ledger]</span>
+            <span>no transactions yet</span>
+          </div>
         ) : (
-          <ul className="divide-y divide-gray-100">
+          <ul className="divide-y divide-rule">
             {purchases.map((purchase, index) => (
               <li
                 key={`${purchase.createdAt}-${index}`}
                 className="py-3 flex items-center justify-between gap-4"
               >
                 <div className="flex items-center gap-3">
-                  <span className="text-sm font-medium text-gray-900">
+                  <span className="text-sm font-medium text-ink">
                     {isTier(purchase.tier) ? TIERS[purchase.tier].name : purchase.tier}
                   </span>
-                  <span className="text-xs text-gray-500">
+                  <span className="font-mono text-xs text-ink-soft">
                     {new Date(purchase.createdAt).toLocaleDateString(undefined, {
                       year: 'numeric',
                       month: 'short',
@@ -290,13 +296,14 @@ export function AccountPanel() {
                     })}
                   </span>
                 </div>
-                <span className="text-sm text-gray-700">
+                <span className="font-mono tabular-nums text-sm text-ink">
                   ${(purchase.amountCents / 100).toFixed(2)}
                 </span>
               </li>
             ))}
           </ul>
         )}
+      </div>
       </div>
     </div>
   );
