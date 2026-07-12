@@ -1,15 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
 import type { checkRateLimit } from '@/utils/rateLimit';
-import {
-  consumeAiQuota,
-  getEntitlement,
-  isClerkConfigured,
-  isClerkMisconfigured,
-  refundAiQuota,
-} from '@/lib/entitlements';
-import { isSupabaseConfigured } from '@/lib/supabase/server';
-import { isPaidTier } from '@/lib/tiers';
+import { isClerkConfigured, isClerkMisconfigured } from '@/lib/entitlements';
 
 // Shared scaffolding for the API routes. These blocks were previously
 // copy-pasted per route and had already diverged (proxy lacked the
@@ -43,10 +35,10 @@ export async function parseJsonBody<T>(
 
 /**
  * User-supplied key from the Authorization header ONLY — no env fallback.
- * The AI routes gate the server key behind paid-tier quota, so they must be
- * able to tell a BYOK request apart from one that would spend the server key.
- * (There is deliberately NO helper that falls back to process.env.OPENAI_API_KEY:
- * that would hand out the server key with no tier or quota gating.)
+ * AI is bring-your-own-key on every tier, so this header is how a request
+ * carries the key it will run on. (There is deliberately NO helper that falls
+ * back to process.env.OPENAI_API_KEY: that would hand out the server key
+ * ungated.)
  */
 export function getBearerKey(request: NextRequest): string | undefined {
   const authHeader = request.headers.get('authorization');
@@ -58,18 +50,18 @@ export type ResolvedOpenAIKey =
   | { apiKey?: never; refundQuota?: never; errorResponse: NextResponse };
 
 /**
- * Resolves the OpenAI key an AI route may use. Call AFTER request validation
- * so invalid requests never touch quota.
- * - BYOK (Authorization: Bearer <key>) is always allowed, free, and unmetered.
+ * Resolves the OpenAI key an AI route may use. Call AFTER request validation.
+ * AI is bring-your-own-key on every tier — a request must carry the user's key
+ * in `Authorization: Bearer <key>`.
+ * - BYOK (Bearer) is always allowed, free, and unmetered.
  * - Clerk entirely unconfigured → legacy dev/OSS mode: the server env key,
  *   ungated — local dev without accounts keeps working.
- * - Clerk + Supabase configured → the server key is gated: signed-in paid
- *   tier + monthly quota. `refundQuota` is non-null when a quota op was
- *   consumed; routes must call it on any failure after this point so users
- *   are only charged for delivered results.
- * - Inconsistent config (one Clerk key only, or Clerk without Supabase) →
- *   503: failing loudly beats silently serving the server key ungated, or
- *   telling paying customers to buy a plan they already own.
+ * - Accounts configured but no Bearer key → 401: bring your own key (no tier
+ *   grants server-key AI).
+ * - Inconsistent Clerk config → 503: fail loudly rather than serve the server
+ *   key ungated.
+ * `refundQuota` is always null now (no server-key quota is ever spent); the
+ * field is kept so AI routes' refund-on-failure calls stay a harmless no-op.
  */
 export async function resolveOpenAIKey(request: NextRequest): Promise<ResolvedOpenAIKey> {
   const bearerKey = getBearerKey(request);
@@ -90,6 +82,7 @@ export async function resolveOpenAIKey(request: NextRequest): Promise<ResolvedOp
   }
 
   if (!isClerkConfigured()) {
+    // Legacy dev/OSS mode (no accounts): use the server env key ungated.
     const envKey = process.env.OPENAI_API_KEY;
     if (envKey) return { apiKey: envKey, refundQuota: null };
     return {
@@ -97,67 +90,14 @@ export async function resolveOpenAIKey(request: NextRequest): Promise<ResolvedOp
     };
   }
 
-  if (!isSupabaseConfigured()) {
-    // Accounts exist but tiers/quotas have nowhere to live — without this a
-    // paying customer would be told to buy the plan they already own.
-    console.error('resolveOpenAIKey: Clerk is configured but Supabase is not — paid-tier AI cannot work');
-    return {
-      errorResponse: NextResponse.json(
-        { error: 'AI plans are unavailable: this server has no accounts database configured. Add your own OpenAI API key, or contact the site operator.' },
-        { status: 503 }
-      ),
-    };
-  }
-
-  const { userId, tier, degraded } = await getEntitlement();
-  if (!userId) {
-    return {
-      errorResponse: NextResponse.json(
-        { error: 'Add your own OpenAI API key, or sign in with a Pro or Enterprise plan to use ours.' },
-        { status: 401 }
-      ),
-    };
-  }
-  if (degraded) {
-    return {
-      errorResponse: NextResponse.json(
-        { error: 'We could not verify your plan right now. Please try again in a moment.' },
-        { status: 503 }
-      ),
-    };
-  }
-  if (!isPaidTier(tier)) {
-    return {
-      errorResponse: NextResponse.json(
-        { error: 'AI without an API key requires a Pro or Enterprise plan ($2/$5 one-time), or add your own OpenAI API key.' },
-        { status: 403 }
-      ),
-    };
-  }
-
-  // Pure config check BEFORE the destructive quota spend: a missing server
-  // key must never burn a paid user's monthly ops.
-  const envKey = process.env.OPENAI_API_KEY;
-  if (!envKey) {
-    return {
-      errorResponse: NextResponse.json(
-        { error: 'AI is not configured on this server' },
-        { status: 503 }
-      ),
-    };
-  }
-
-  const quota = await consumeAiQuota(userId, tier);
-  if (!quota.allowed) {
-    return {
-      errorResponse: NextResponse.json(
-        { error: `You've used all ${quota.quota} included AI operations this month. They reset next month — or add your own OpenAI API key for unlimited use.` },
-        { status: 429 }
-      ),
-    };
-  }
-
-  return { apiKey: envKey, refundQuota: () => refundAiQuota(userId) };
+  // Accounts mode: AI is bring-your-own-key on every plan. Without a Bearer
+  // key there is no way to run AI, regardless of tier.
+  return {
+    errorResponse: NextResponse.json(
+      { error: 'Add your own OpenAI API key to use AI features.' },
+      { status: 401 }
+    ),
+  };
 }
 
 /**

@@ -1,111 +1,408 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+/* ────────────────────────────────────────────────────────────────────────────
+   ResumeAI Pro design system — "What the machine reads"
+   Two voices: editorial paper surfaces for the human reader, and a monospace
+   machine layer for what the ATS sees. One accent (pen). No gradients.
+   ──────────────────────────────────────────────────────────────────────────── */
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+@theme {
+  /* palette */
+  --color-ink: #16181d;
+  --color-ink-soft: #565b64;
+  --color-paper: #ffffff;
+  --color-bench: #f1f2ee;
+  --color-rule: #e3e4de;
+  --color-pen: #4b41d6;
+  --color-pen-deep: #3a32a8;
+  --color-pen-light: #a49bf0;
+  --color-pen-wash: #eeedfb;
+  --color-mark: #f7e463;
+  --color-pass: #1e7a4e;
+  --color-fail: #b3372b;
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  /* One radius, one shadow scale — tokenized so 3px + card lift can't drift. */
+  --radius: 3px;
+  --shadow-card: 0 1px 2px rgb(22 24 29 / 0.05), 0 12px 24px -16px rgb(22 24 29 / 0.18);
+  --shadow-lift: 0 2px 4px rgb(22 24 29 / 0.06), 0 20px 36px -18px rgb(22 24 29 / 0.28);
+
+  /* type roles */
+  --font-display: var(--font-bricolage), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-instrument), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-plex-mono), ui-monospace, "SF Mono", monospace;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
-  font-feature-settings: 'rlig' 1, 'calt' 1;
+  background: var(--color-bench);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  font-feature-settings: "rlig" 1, "calt" 1;
 }
 
 html {
   scroll-behavior: smooth;
 }
 
-/* Custom scrollbar */
+/* Visible keyboard focus everywhere, in pen. */
+:focus-visible {
+  outline: 2px solid var(--color-pen);
+  outline-offset: 2px;
+}
+
+::selection {
+  background: var(--color-mark);
+  color: var(--color-ink);
+}
+
+/* Quiet scrollbar tuned to the bench. */
 ::-webkit-scrollbar {
   width: 8px;
 }
-
 ::-webkit-scrollbar-track {
-  background: #f1f5f9;
-  border-radius: 4px;
+  background: var(--color-bench);
 }
-
 ::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
+  background: var(--color-rule);
   border-radius: 4px;
 }
-
 ::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
+  background: var(--color-ink-soft);
 }
 
-/* Animation keyframes */
-@keyframes fadeInUp {
+@layer components {
+  /* Paper card: the document surface. Crisp edge, faint lift, and a whisper
+     of grain so large sheets read as material rather than #fff. */
+  .paper {
+    background-color: var(--color-paper);
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='0.028'/%3E%3C/svg%3E");
+    border: 1px solid rgb(22 24 29 / 0.14);
+    border-radius: 3px;
+    box-shadow:
+      0 1px 2px rgb(22 24 29 / 0.05),
+      0 12px 24px -16px rgb(22 24 29 / 0.18);
+  }
+
+  /* Ink fields and slabs: the dark stage that makes paper read as the lit
+     object. The radial pen glow is ATMOSPHERE ONLY — the one sanctioned use
+     of a gradient outside the logo mark; never on elements, text, or buttons. */
+  .ink-field {
+    background-color: var(--color-ink);
+    background-image: radial-gradient(
+      720px 380px at 82% -12%,
+      rgb(75 65 214 / 0.38),
+      transparent 70%
+    );
+    color: var(--color-paper);
+  }
+  .ink-panel {
+    background-color: var(--color-ink);
+    background-image: radial-gradient(
+      520px 240px at 85% -20%,
+      rgb(75 65 214 / 0.4),
+      transparent 70%
+    );
+    color: var(--color-paper);
+    border-radius: 3px;
+  }
+
+  /* Faint baseline grid on bench sections — typesetting paper. */
+  .bench-grid {
+    background-image: repeating-linear-gradient(
+      to bottom,
+      rgb(22 24 29 / 0.032) 0,
+      rgb(22 24 29 / 0.032) 1px,
+      transparent 1px,
+      transparent 32px
+    );
+  }
+
+  /* A stack of sheets behind a paper card — depth for hero/preview documents. */
+  .paper-stack {
+    position: relative;
+    z-index: 0;
+  }
+  .paper-stack::before,
+  .paper-stack::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background: var(--color-paper);
+    border: 1px solid rgb(22 24 29 / 0.12);
+    border-radius: 3px;
+  }
+  .paper-stack::before {
+    transform: rotate(-1.7deg) translate(-7px, 7px);
+  }
+  .paper-stack::after {
+    transform: rotate(1.2deg) translate(8px, 11px);
+    opacity: 0.75;
+  }
+
+  /* Hover lift for interactive paper cards. */
+  .paper-hover {
+    transition: transform 200ms ease, box-shadow 200ms ease;
+  }
+  .paper-hover:hover {
+    transform: translateY(-3px);
+    box-shadow:
+      0 2px 4px rgb(22 24 29 / 0.06),
+      0 20px 36px -18px rgb(22 24 29 / 0.28);
+  }
+
+  /* Mono section opener — the same device resumes use ("EXPERIENCE ───"). */
+  .eyebrow {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--color-ink-soft);
+  }
+  .eyebrow-rule {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+  .eyebrow-rule::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: var(--color-rule);
+  }
+
+  /* The signature: a thin machine readout attached to a document. */
+  .machine-strip {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    line-height: 1;
+    color: var(--color-ink-soft);
+    background: var(--color-bench);
+    border-top: 1px solid var(--color-rule);
+    padding: 0.5rem 0.75rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    font-variant-numeric: tabular-nums;
+  }
+  .machine-token {
+    color: var(--color-pen);
+  }
+  /* Strip variant for ink panels. */
+  .machine-strip--ink {
+    background: rgb(255 255 255 / 0.05);
+    border-top-color: rgb(255 255 255 / 0.14);
+    color: rgb(255 255 255 / 0.66);
+  }
+  .machine-strip--ink .machine-token {
+    color: #a49bf0;
+  }
+
+  /* Buttons. Pen = primary; ink = high emphasis on bench; ghost = secondary. */
+  .btn-pen,
+  .btn-ink,
+  .btn-ghost {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    border-radius: 3px;
+    font-weight: 600;
+    transition: background-color 150ms ease, border-color 150ms ease,
+      color 150ms ease, transform 100ms ease;
+  }
+  .btn-pen {
+    background: var(--color-pen);
+    color: var(--color-paper);
+    box-shadow: 0 3px 12px -5px rgb(75 65 214 / 0.45);
+  }
+  .btn-pen:hover {
+    background: var(--color-pen-deep);
+    transform: translateY(-1px);
+    box-shadow: 0 7px 20px -8px rgb(75 65 214 / 0.65);
+  }
+  .btn-ink {
+    background: var(--color-ink);
+    color: var(--color-paper);
+  }
+  .btn-ink:hover {
+    background: #2c2f37;
+    transform: translateY(-1px);
+  }
+  .btn-ghost {
+    background: var(--color-paper);
+    border: 1px solid rgb(22 24 29 / 0.2);
+    color: var(--color-ink);
+  }
+  .btn-ghost:hover {
+    border-color: rgb(22 24 29 / 0.45);
+  }
+  .btn-pen:active,
+  .btn-ink:active,
+  .btn-ghost:active {
+    transform: translateY(1px);
+  }
+  .btn-pen:disabled,
+  .btn-ink:disabled,
+  .btn-ghost:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+    transform: none;
+  }
+
+  /* Keyword marks — highlighter for hits, red pen for misses. */
+  .mark-hit {
+    background: var(--color-mark);
+    color: var(--color-ink);
+    padding: 0 0.25rem;
+    border-radius: 2px;
+    box-decoration-break: clone;
+    -webkit-box-decoration-break: clone;
+  }
+  .mark-miss {
+    color: var(--color-fail);
+    text-decoration: underline dashed;
+    text-underline-offset: 3px;
+    text-decoration-thickness: 1px;
+  }
+
+  /* Form fields. */
+  .input-flat {
+    background: var(--color-paper);
+    border: 1px solid var(--color-rule);
+    border-radius: 3px;
+    color: var(--color-ink);
+    transition: border-color 150ms ease, box-shadow 150ms ease;
+  }
+  .input-flat::placeholder {
+    color: rgb(86 91 100 / 0.6);
+  }
+  .input-flat:focus {
+    outline: none;
+    border-color: var(--color-pen);
+    box-shadow: 0 0 0 3px rgb(75 65 214 / 0.15);
+  }
+
+  /* Ruled-paper skeleton — an empty sheet that already reads as a document
+     waiting to be filled, instead of a centered placeholder icon. */
+  .paper-rule {
+    background-image: repeating-linear-gradient(
+      to bottom,
+      transparent 0,
+      transparent 15px,
+      var(--color-rule) 15px,
+      var(--color-rule) 16px
+    );
+  }
+
+  /* Numbered index token in the machine voice — replaces decorative icons in
+     ledgers and step lists. `[01]`, `feat.03`, etc. */
+  .index-token {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0.06em;
+    color: var(--color-pen);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Mono "checked/enforced" marker for feature lists — the machine's tick,
+     not a stock green checkmark. */
+  .ok-token {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--color-pass);
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+/* ── Hero: the mini resume typesets itself while the machine reads it. ───── */
+
+@keyframes typeset-line {
   from {
     opacity: 0;
-    transform: translateY(20px);
+    transform: translateY(4px);
   }
   to {
     opacity: 1;
     transform: translateY(0);
   }
 }
+.typeset-line {
+  animation: typeset-line 0.45s ease-out both;
+}
 
-@keyframes pulse {
-  0%, 100% {
+@keyframes caret-blink {
+  0%, 45% {
     opacity: 1;
   }
-  50% {
-    opacity: 0.5;
+  50%, 100% {
+    opacity: 0;
+  }
+}
+.machine-caret {
+  animation: caret-blink 1.1s step-end infinite;
+}
+
+/* ── Scroll reveals: opt-in via [data-reveal]; the ScrollReveal island adds
+   .js-reveal to <html> (so no-JS and reduced-motion users see everything). ── */
+.js-reveal [data-reveal] {
+  opacity: 0;
+  transform: translateY(18px);
+  transition: opacity 0.6s ease, transform 0.6s ease;
+}
+.js-reveal [data-reveal].is-revealed {
+  opacity: 1;
+  transform: none;
+}
+
+/* Optional per-child cascade: a revealed grid/row whose children carry
+   [data-stagger] lifts them in sequence rather than as one block fade. */
+.js-reveal [data-reveal] [data-stagger] {
+  opacity: 0;
+  transform: translateY(14px);
+  transition: opacity 0.5s ease, transform 0.5s ease;
+}
+.js-reveal [data-reveal].is-revealed [data-stagger] {
+  opacity: 1;
+  transform: none;
+}
+.js-reveal [data-reveal].is-revealed [data-stagger]:nth-child(1) { transition-delay: 0.04s; }
+.js-reveal [data-reveal].is-revealed [data-stagger]:nth-child(2) { transition-delay: 0.10s; }
+.js-reveal [data-reveal].is-revealed [data-stagger]:nth-child(3) { transition-delay: 0.16s; }
+.js-reveal [data-reveal].is-revealed [data-stagger]:nth-child(4) { transition-delay: 0.22s; }
+.js-reveal [data-reveal].is-revealed [data-stagger]:nth-child(5) { transition-delay: 0.28s; }
+.js-reveal [data-reveal].is-revealed [data-stagger]:nth-child(6) { transition-delay: 0.34s; }
+
+/* The parse pass: a read-head sweeps the hero document once on load, the way
+   the machine scans a résumé. Atmosphere, single accent, reduced-motion safe. */
+@keyframes scan-sweep {
+  0% { transform: translateY(-8%); opacity: 0; }
+  12% { opacity: 1; }
+  88% { opacity: 1; }
+  100% { transform: translateY(760%); opacity: 0; }
+}
+.scan-sweep {
+  animation: scan-sweep 2.6s cubic-bezier(0.4, 0, 0.2, 1) 0.6s both;
+}
+
+/* Hand-drawn pen circle that draws itself when its section reveals. */
+.js-reveal [data-reveal] .circle-draw {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+}
+.js-reveal [data-reveal].is-revealed .circle-draw {
+  animation: draw-circle 0.9s ease-out 0.35s forwards;
+}
+@keyframes draw-circle {
+  to {
+    stroke-dashoffset: 0;
   }
 }
 
-@keyframes blob {
-  0% {
-    transform: translate(0px, 0px) scale(1);
-  }
-  33% {
-    transform: translate(30px, -50px) scale(1.1);
-  }
-  66% {
-    transform: translate(-20px, 20px) scale(0.9);
-  }
-  100% {
-    transform: translate(0px, 0px) scale(1);
-  }
-}
-
-.animate-fade-in-up {
-  animation: fadeInUp 0.5s ease-out;
-}
-
-.animate-pulse-slow {
-  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-}
-
-.animate-blob {
-  animation: blob 7s infinite;
-}
-
-.animation-delay-2000 {
-  animation-delay: 2s;
-}
-
-.animation-delay-4000 {
-  animation-delay: 4s;
-}
-
-/* Landing page entrance animations (CSS replacement for framer-motion) */
+/* Modal transitions (used by TemplatesModal / dialogs). */
 @keyframes fadeIn {
   from {
     opacity: 0;
@@ -114,65 +411,47 @@ html {
     opacity: 1;
   }
 }
-
-@keyframes scaleIn {
+@keyframes riseIn {
   from {
     opacity: 0;
-    transform: scale(0.9);
+    transform: translateY(8px) scale(0.99);
   }
   to {
     opacity: 1;
-    transform: scale(1);
+    transform: translateY(0) scale(1);
   }
 }
-
-.animate-fade-up {
-  animation: fadeInUp 0.6s ease-out both;
-}
-
-.animation-delay-200 {
-  animation-delay: 0.2s;
-}
-
-.animation-delay-400 {
-  animation-delay: 0.4s;
-}
-
-.animation-delay-600 {
-  animation-delay: 0.6s;
-}
-
 .animate-modal-overlay {
-  animation: fadeIn 0.2s ease-out both;
+  animation: fadeIn 0.15s ease-out both;
 }
-
 .animate-modal-panel {
-  animation: scaleIn 0.2s ease-out both;
+  animation: riseIn 0.18s ease-out both;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .animate-fade-up,
+  html {
+    scroll-behavior: auto;
+  }
+  .typeset-line,
+  .machine-caret,
+  .scan-sweep,
   .animate-modal-overlay,
-  .animate-modal-panel,
-  .animate-blob,
-  .animate-fade-in-up {
+  .animate-modal-panel {
     animation: none;
   }
-}
-
-/* Utility classes */
-.text-shadow {
-  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-}
-
-.text-shadow-lg {
-  text-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-}
-
-.hover-scale {
-  transition: transform 0.2s ease-in-out;
-}
-
-.hover-scale:hover {
-  transform: scale(1.02);
+  /* No travel on hover for users who asked for no motion. */
+  .paper-hover,
+  .btn-pen,
+  .btn-ink,
+  .btn-ghost {
+    transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease;
+  }
+  .paper-hover:hover,
+  .btn-pen:hover,
+  .btn-ink:hover,
+  .btn-pen:active,
+  .btn-ink:active,
+  .btn-ghost:active {
+    transform: none;
+  }
 }
