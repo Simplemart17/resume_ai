@@ -27,7 +27,11 @@ export interface TierDefinition {
   priceCents: number;
   priceLabel: string;
   tagline: string;
-  /** AI operations (optimize or cover letter) per calendar month on the SERVER key. */
+  /**
+   * Server-key AI operations per calendar month. Currently 0 on every tier —
+   * AI is bring-your-own-key across all plans (see resolveOpenAIKey). Kept as a
+   * field so a future tier can re-enable metered server-key AI without a schema change.
+   */
   monthlyAiQuota: number;
   templateIds: readonly string[];
   /** Display list for the pricing UI — everything here is enforced in code. */
@@ -47,7 +51,7 @@ export const TIERS: Record<Tier, TierDefinition> = {
       'Modern & Classic templates',
       'Unlimited PDF downloads',
       'Resume parsing & auto-fill extraction',
-      'AI optimization with your own OpenAI key',
+      'AI optimize & cover letters with your own OpenAI key',
     ],
   },
   pro: {
@@ -56,12 +60,12 @@ export const TIERS: Record<Tier, TierDefinition> = {
     priceCents: 200,
     priceLabel: '$2',
     tagline: 'One-time payment, yours forever',
-    monthlyAiQuota: 20,
+    monthlyAiQuota: 0,
     templateIds: TEMPLATE_IDS_ALL,
     features: [
       `All ${TEMPLATE_IDS_ALL.length} resume templates`,
       'Unlimited PDF downloads',
-      '20 AI optimizations or cover letters per month — no API key needed',
+      'AI optimize & cover letters with your own OpenAI key',
       'Everything in Free',
     ],
   },
@@ -70,12 +74,11 @@ export const TIERS: Record<Tier, TierDefinition> = {
     name: 'Enterprise',
     priceCents: 500,
     priceLabel: '$5',
-    tagline: 'One-time payment, our highest limits',
-    monthlyAiQuota: 100,
+    tagline: 'One-time payment — the supporter tier',
+    monthlyAiQuota: 0,
     templateIds: TEMPLATE_IDS_ALL,
     features: [
       'Everything in Pro',
-      '100 AI optimizations or cover letters per month — no API key needed',
     ],
   },
 };
