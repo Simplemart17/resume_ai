@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FiDownload, FiEye, FiCheck, FiLock } from 'react-icons/fi';
 import { NewPDFGenerator } from '@/utils/newPdfGenerator';
 import { TemplatePreview } from './TemplatePreview';
 import { TEMPLATES } from '@/config/templates';
@@ -18,6 +17,15 @@ const EMPTY_RESUME_DATA: ResumeData = {
   experience: [],
   education: [],
   skills: [],
+};
+
+// Machine-strip captions for the template cards, keyed by template id.
+// Mirrors TEMPLATE_STRIPS on the landing page.
+const TEMPLATE_STRIPS: Record<string, string> = {
+  'modern-professional': 'single column · sans-serif · ats safe',
+  'classic-traditional': 'two column · conservative · ats safe',
+  'creative-designer': 'accent sidebar · portfolio · ats safe',
+  'executive-premium': 'wide margins · senior · ats safe',
 };
 
 interface NewResumeTemplatesProps {
@@ -51,14 +59,19 @@ export function NewResumeTemplates({
   const isTemplatePending = (templateId: string) =>
     accountsEnabled && tierLoading && !canUseTemplate('free', templateId);
 
-  // Close the preview modal on Escape
+  // Close the preview modal on Escape, and lock body scroll while it's open.
   useEffect(() => {
     if (!previewTemplate) return;
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') setPreviewTemplate(null);
     };
     document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      document.body.style.overflow = prevOverflow;
+    };
   }, [previewTemplate]);
 
   const handleTemplateSelect = (templateId: string) => {
@@ -106,63 +119,58 @@ export function NewResumeTemplates({
 
   return (
     <div className="max-w-7xl mx-auto">
-      <div className="text-center mb-8">
-        <h2 className="text-3xl font-bold text-gray-900 mb-4">
-          Choose Your Resume Template
+      <div className="max-w-2xl mb-8">
+        <h2 className="font-display text-2xl font-bold tracking-tight text-ink mb-2">
+          Choose a template
         </h2>
-        <p className="text-lg text-gray-600 max-w-3xl mx-auto">
-          Select from our professionally designed templates.
-          All templates are ATS-friendly and optimized for modern hiring systems.
+        <p className="text-ink-soft">
+          Four layouts. All of them parse cleanly in applicant tracking systems.
         </p>
       </div>
 
       {/* Template Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        {TEMPLATES.map((template, index) => (
-          <motion.div
+        {TEMPLATES.map((template) => (
+          <div
             key={template.id}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: index * 0.1 }}
-            className={`bg-white rounded-xl shadow-lg overflow-hidden hover:shadow-xl transition-all duration-300 border-2 ${selectedTemplate === template.id
-                ? 'border-blue-500 ring-2 ring-blue-200'
-                : 'border-gray-200 hover:border-gray-300'
+            className={`paper overflow-hidden flex flex-col ${selectedTemplate === template.id
+                ? 'border-2 !border-pen'
+                : ''
               }`}
           >
             {/* Template Preview */}
-            <div className="h-48 p-4 bg-gray-50 relative">
+            <div className="h-48 p-4 bg-bench border-b border-rule relative">
               <TemplatePreview templateId={template.id} className="h-full" />
 
               {isTemplateLocked(template.id) && (
-                <div className="absolute top-3 left-3 flex items-center gap-1.5 bg-gray-900/75 text-white text-xs font-semibold px-2.5 py-1 rounded-full">
-                  <FiLock className="w-3 h-3" />
-                  Pro
+                <div className="absolute top-3 left-3 bg-ink/80 text-paper font-mono text-[10px] font-semibold uppercase tracking-wider px-2 py-1 rounded-[2px]">
+                  [pro]
                 </div>
               )}
 
               {selectedTemplate === template.id && (
-                <div className="absolute top-3 right-3 bg-blue-600 rounded-full p-2">
-                  <FiCheck className="w-4 h-4 text-white" />
+                <div className="absolute top-3 right-3 bg-pen rounded-[2px] px-1.5 py-0.5 font-mono text-[11px] font-semibold text-paper" aria-hidden="true">
+                  ✓
                 </div>
               )}
             </div>
 
             {/* Template Info */}
-            <div className="p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">
+            <div className="p-5 flex-1 flex flex-col">
+              <h3 className="font-semibold text-ink mb-1">
                 {template.name}
               </h3>
-              <p className="text-gray-600 text-sm mb-4">
+              <p className="text-ink-soft text-sm leading-relaxed mb-4">
                 {template.description}
               </p>
 
               {/* Features */}
-              <div className="mb-4">
-                <div className="flex flex-wrap gap-1">
+              <div className="mb-5">
+                <div className="flex flex-wrap gap-1.5">
                   {template.features.map((feature, idx) => (
                     <span
                       key={idx}
-                      className="inline-block bg-gray-100 text-gray-700 text-xs px-2 py-1 rounded-full"
+                      className="inline-block font-mono text-[10px] uppercase tracking-wider bg-bench border border-rule text-ink-soft px-2 py-0.5 rounded-full"
                     >
                       {feature}
                     </span>
@@ -172,58 +180,60 @@ export function NewResumeTemplates({
 
               {/* Actions */}
               {isTemplateLocked(template.id) ? (
-                <div className="space-y-2">
+                <div className="mt-auto space-y-2">
                   <button
                     onClick={() => handlePreview(template.id)}
-                    className="w-full bg-gray-100 hover:bg-gray-200 text-gray-800 py-2 px-4 rounded-lg font-medium transition-colors duration-200 flex items-center justify-center gap-2"
+                    className="btn-ghost w-full px-4 py-2 text-sm"
                   >
-                    <FiEye className="w-4 h-4" />
                     Preview
                   </button>
 
                   <Link
                     href="/#pricing"
-                    className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white py-2 px-4 rounded-lg font-semibold transition-colors duration-200 flex items-center justify-center gap-2"
+                    className="btn-pen w-full px-4 py-2 text-sm"
                   >
-                    <FiLock className="w-4 h-4" />
                     Unlock with Pro — $2 one-time
                   </Link>
                 </div>
               ) : (
-                <div className="space-y-2">
+                <div className="mt-auto space-y-2">
                   <button
                     onClick={() => handleTemplateSelect(template.id)}
                     disabled={isTemplatePending(template.id)}
-                    className={`w-full py-2 px-4 rounded-lg font-semibold transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${selectedTemplate === template.id
-                        ? 'bg-blue-600 text-white'
-                        : 'bg-gray-100 hover:bg-gray-200 text-gray-800'
+                    className={`btn-ghost w-full px-4 py-2 text-sm ${selectedTemplate === template.id
+                        ? 'bg-pen-wash text-pen border-pen'
+                        : ''
                       }`}
                   >
-                    {selectedTemplate === template.id ? 'Selected' : 'Select Template'}
+                    {selectedTemplate === template.id ? 'Selected' : 'Select template'}
                   </button>
 
                   <div className="flex gap-2">
                     <button
                       onClick={() => handlePreview(template.id)}
-                      className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-800 py-2 px-3 rounded-lg font-medium transition-colors duration-200 flex items-center justify-center gap-2"
+                      className="btn-ghost flex-1 px-3 py-2 text-sm"
                     >
-                      <FiEye className="w-4 h-4" />
                       Preview
                     </button>
 
                     <button
                       onClick={() => handleDownloadPDF(template.id)}
                       disabled={isGenerating || isTemplatePending(template.id)}
-                      className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 px-3 rounded-lg font-medium transition-colors duration-200 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="btn-ghost flex-1 px-3 py-2 text-sm"
                     >
-                      <FiDownload className="w-4 h-4" />
-                      {isGenerating ? 'Generating...' : 'Download'}
+                      {isGenerating ? 'Generating…' : 'Download'}
                     </button>
                   </div>
                 </div>
               )}
             </div>
-          </motion.div>
+
+            {/* the machine's view of the layout */}
+            <div className="machine-strip">
+              <span className="machine-token">[layout]</span>
+              <span>{TEMPLATE_STRIPS[template.id] ?? 'ats safe'}</span>
+            </div>
+          </div>
         ))}
       </div>
 
@@ -234,30 +244,32 @@ export function NewResumeTemplates({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+            transition={{ duration: 0.15 }}
+            className="fixed inset-0 bg-ink/60 flex items-center justify-center z-50 p-4"
             onClick={() => setPreviewTemplate(null)}
           >
             <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
+              initial={{ scale: 0.98, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              className="bg-white rounded-xl max-w-4xl max-h-[90vh] overflow-auto"
+              exit={{ scale: 0.98, opacity: 0 }}
+              transition={{ duration: 0.18 }}
+              className="paper max-w-4xl max-h-[90vh] overflow-auto"
               onClick={(e) => e.stopPropagation()}
               role="dialog"
               aria-modal="true"
               aria-labelledby="template-preview-title"
             >
               <div className="p-6">
-                <div className="flex justify-between items-center mb-4">
-                  <h3 id="template-preview-title" className="text-xl font-semibold text-gray-900">
-                    Template Preview: {TEMPLATES.find(t => t.id === previewTemplate)?.name}
+                <div className="flex justify-between items-center mb-5">
+                  <h3 id="template-preview-title" className="font-display text-xl font-semibold tracking-tight text-ink">
+                    Preview: {TEMPLATES.find(t => t.id === previewTemplate)?.name}
                   </h3>
                   <button
                     onClick={() => setPreviewTemplate(null)}
-                    className="text-gray-500 hover:text-gray-700"
+                    className="text-ink-soft hover:text-ink transition-colors"
                     aria-label="Close"
                   >
-                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                     </svg>
                   </button>
@@ -265,18 +277,20 @@ export function NewResumeTemplates({
 
                 <div className="space-y-6">
                   {/* Large Template Preview */}
-                  <div className="bg-white rounded-lg border-2 border-gray-200 p-8">
+                  <div className="bg-bench border border-rule rounded-[3px] p-8">
                     <TemplatePreview templateId={previewTemplate} className="h-96" />
                   </div>
 
                   {/* Template Details */}
-                  <div className="bg-gray-50 rounded-lg p-6">
-                    <h4 className="font-semibold text-gray-900 mb-3">Template Features:</h4>
-                    <div className="grid grid-cols-2 gap-4">
+                  <div className="border border-rule rounded-[3px] p-6">
+                    <h4 className="eyebrow eyebrow-rule mb-4">
+                      <span>Features</span>
+                    </h4>
+                    <div className="grid grid-cols-2 gap-3">
                       {TEMPLATES.find(t => t.id === previewTemplate)?.features.map((feature, idx) => (
                         <div key={idx} className="flex items-center gap-2">
-                          <FiCheck className="w-4 h-4 text-green-600" />
-                          <span className="text-gray-700">{feature}</span>
+                          <span className="ok-token" aria-hidden="true">✓</span>
+                          <span className="text-sm text-ink">{feature}</span>
                         </div>
                       ))}
                     </div>
@@ -287,9 +301,8 @@ export function NewResumeTemplates({
                     <Link
                       href="/#pricing"
                       onClick={() => setPreviewTemplate(null)}
-                      className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white px-6 py-3 rounded-lg font-semibold transition-colors duration-200 flex items-center justify-center gap-2"
+                      className="btn-pen w-full px-6 py-3"
                     >
-                      <FiLock className="w-4 h-4" />
                       Unlock with Pro — $2 one-time
                     </Link>
                   ) : (
@@ -300,9 +313,9 @@ export function NewResumeTemplates({
                           setPreviewTemplate(null);
                         }}
                         disabled={isTemplatePending(previewTemplate)}
-                        className="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-semibold transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="btn-pen flex-1 px-6 py-3"
                       >
-                        Use This Template
+                        Use this template
                       </button>
                       <button
                         onClick={() => {
@@ -310,7 +323,7 @@ export function NewResumeTemplates({
                           setPreviewTemplate(null);
                         }}
                         disabled={isGenerating || isTemplatePending(previewTemplate)}
-                        className="flex-1 bg-gray-600 hover:bg-gray-700 text-white px-6 py-3 rounded-lg font-semibold transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="btn-ghost flex-1 px-6 py-3"
                       >
                         Download PDF
                       </button>
@@ -325,10 +338,12 @@ export function NewResumeTemplates({
 
       {/* Loading Overlay */}
       {isGenerating && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-8 text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-            <p className="text-gray-600">Generating your resume PDF...</p>
+        <div className="fixed inset-0 bg-ink/60 flex items-center justify-center z-50">
+          <div className="paper p-8 text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-pen mx-auto mb-4"></div>
+            <p className="font-mono text-xs text-ink-soft">
+              <span className="text-pen">[pdf]</span> generating your resume…
+            </p>
           </div>
         </div>
       )}
