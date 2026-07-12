@@ -2,11 +2,8 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import Link from 'next/link';
-import { FiKey, FiEye, FiEyeOff, FiCheck, FiInfo } from 'react-icons/fi';
 import { apiKeyManager } from '@/utils/apiKeyManager';
 import { useUserTier } from '@/lib/useUserTier';
-import { isPaidTier, TIERS } from '@/lib/tiers';
 import toast from 'react-hot-toast';
 
 interface ApiKeyManagerProps {
@@ -24,7 +21,7 @@ export function ApiKeyManager({ onApiKeySet }: ApiKeyManagerProps) {
   const [hasCustomKey, setHasCustomKey] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const keyInputRef = useRef<HTMLInputElement>(null);
-  const { tier, accountsEnabled, loading: tierLoading } = useUserTier();
+  const { accountsEnabled, loading: tierLoading } = useUserTier();
 
   // A key is only truly REQUIRED when accounts are disabled: with accounts
   // enabled, paid tiers use the server key with no browser key at all, so
@@ -96,39 +93,39 @@ export function ApiKeyManager({ onApiKeySet }: ApiKeyManagerProps) {
     // A saved browser key overrides the environment key (it is attached as
     // the Authorization header), so say so and offer Update/Remove controls.
     return hasCustomKey ? (
-      <div className="flex items-center justify-between p-4 bg-green-50 border border-green-200 rounded-lg">
+      <div className="paper flex flex-wrap items-center justify-between gap-3 p-4">
         <div className="flex items-center">
-          <FiCheck className="text-green-500 mr-2" />
-          <span className="text-sm text-green-700">
-            Development mode: Using your saved custom API key
+          <span className="font-mono text-xs font-semibold text-pass mr-2 shrink-0" aria-hidden="true">[key]</span>
+          <span className="font-mono text-xs text-ink-soft">
+            Development mode: using your saved custom API key
           </span>
         </div>
-        <div className="flex space-x-2">
+        <div className="flex space-x-3">
           <button
             onClick={() => setShowModal(true)}
-            className="text-sm text-green-600 hover:text-green-800 underline"
+            className="text-sm text-pen hover:text-pen-deep underline underline-offset-2 transition-colors"
           >
             Update
           </button>
           <button
             onClick={handleRemoveKey}
-            className="text-sm text-red-600 hover:text-red-800 underline"
+            className="text-sm text-fail hover:text-ink underline underline-offset-2 transition-colors"
           >
             Remove
           </button>
         </div>
       </div>
     ) : (
-      <div className="flex items-center justify-between p-4 bg-blue-50 border border-blue-200 rounded-lg">
+      <div className="paper flex flex-wrap items-center justify-between gap-3 p-4">
         <div className="flex items-center">
-          <FiInfo className="text-blue-500 mr-2" />
-          <span className="text-sm text-blue-700">
-            Development mode: Using environment API key
+          <span className="font-mono text-xs font-semibold text-pen mr-2 shrink-0" aria-hidden="true">[key]</span>
+          <span className="font-mono text-xs text-ink-soft">
+            Development mode: using environment API key
           </span>
         </div>
         <button
           onClick={() => setShowModal(true)}
-          className="text-sm text-blue-600 hover:text-blue-800 underline"
+          className="text-sm text-pen hover:text-pen-deep underline underline-offset-2 transition-colors"
         >
           Set custom key
         </button>
@@ -139,21 +136,21 @@ export function ApiKeyManager({ onApiKeySet }: ApiKeyManagerProps) {
   return (
     <>
       {hasStoredKey && !showModal && (
-        <div className="flex items-center justify-between p-4 bg-green-50 border border-green-200 rounded-lg">
+        <div className="paper flex flex-wrap items-center justify-between gap-3 p-4">
           <div className="flex items-center">
-            <FiCheck className="text-green-500 mr-2" />
-            <span className="text-sm text-green-700">API key configured</span>
+            <span className="font-mono text-xs font-semibold text-pass mr-2 shrink-0" aria-hidden="true">[key]</span>
+            <span className="font-mono text-xs text-ink-soft">API key configured</span>
           </div>
-          <div className="flex space-x-2">
+          <div className="flex space-x-3">
             <button
               onClick={() => setShowModal(true)}
-              className="text-sm text-green-600 hover:text-green-800 underline"
+              className="text-sm text-pen hover:text-pen-deep underline underline-offset-2 transition-colors"
             >
               Update
             </button>
             <button
               onClick={handleRemoveKey}
-              className="text-sm text-red-600 hover:text-red-800 underline"
+              className="text-sm text-fail hover:text-ink underline underline-offset-2 transition-colors"
             >
               Remove
             </button>
@@ -161,33 +158,21 @@ export function ApiKeyManager({ onApiKeySet }: ApiKeyManagerProps) {
         </div>
       )}
 
-      {/* Accounts mode, no key stored: informative, never blocking. */}
+      {/* Accounts mode, no key stored: AI is bring-your-own-key on every plan. */}
       {!hasStoredKey && !showModal && accountsEnabled && !tierLoading && (
-        <div className="flex items-center justify-between gap-4 p-4 bg-blue-50 border border-blue-200 rounded-lg flex-wrap">
+        <div className="paper flex items-center justify-between gap-4 p-4 flex-wrap">
           <div className="flex items-center">
-            <FiInfo className="text-blue-500 mr-2 shrink-0" />
-            <span className="text-sm text-blue-700">
-              {isPaidTier(tier)
-                ? `Your ${TIERS[tier].name} plan includes AI on our key — no API key needed.`
-                : 'Add your own OpenAI API key, or get Pro for AI with no key needed.'}
+            <span className="font-mono text-xs font-semibold text-pen mr-2 shrink-0" aria-hidden="true">[key]</span>
+            <span className="font-mono text-xs text-ink-soft">
+              Add your own OpenAI API key to use AI features.
             </span>
           </div>
-          <div className="flex items-center space-x-3">
-            {!isPaidTier(tier) && (
-              <Link
-                href="/#pricing"
-                className="text-sm text-blue-600 hover:text-blue-800 underline"
-              >
-                See plans
-              </Link>
-            )}
-            <button
-              onClick={() => setShowModal(true)}
-              className="text-sm text-blue-600 hover:text-blue-800 underline"
-            >
-              {isPaidTier(tier) ? 'Use my own key' : 'Set API key'}
-            </button>
-          </div>
+          <button
+            onClick={() => setShowModal(true)}
+            className="text-sm text-pen hover:text-pen-deep underline underline-offset-2 transition-colors"
+          >
+            Set API key
+          </button>
         </div>
       )}
 
@@ -197,32 +182,34 @@ export function ApiKeyManager({ onApiKeySet }: ApiKeyManagerProps) {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+            transition={{ duration: 0.15 }}
+            className="fixed inset-0 bg-ink/50 flex items-center justify-center z-50 p-4"
           >
             <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
+              initial={{ scale: 0.98, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
+              exit={{ scale: 0.98, opacity: 0 }}
+              transition={{ duration: 0.15 }}
               role="dialog"
               aria-modal="true"
               aria-labelledby="api-key-modal-title"
-              className="bg-white rounded-xl p-6 max-w-md w-full shadow-2xl"
+              className="paper p-6 max-w-md w-full"
             >
-              <div className="flex items-center mb-4">
-                <FiKey className="text-indigo-600 mr-3 text-xl" />
-                <h2 id="api-key-modal-title" className="text-xl font-semibold text-gray-900">
-                  OpenAI API Key Required
+              <div className="mb-4">
+                <p className="eyebrow mb-1.5">Bring your own key</p>
+                <h2 id="api-key-modal-title" className="font-display text-xl font-semibold tracking-tight text-ink">
+                  OpenAI API key
                 </h2>
               </div>
 
-              <p className="text-gray-600 mb-4 text-sm">
+              <p className="text-ink-soft mb-4 text-sm leading-relaxed">
                 To use AI features, please provide your OpenAI API key.
                 You can get one from{' '}
                 <a
                   href="https://platform.openai.com/api-keys"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-indigo-600 hover:text-indigo-800 underline"
+                  className="text-pen hover:text-pen-deep underline underline-offset-2 transition-colors"
                 >
                   OpenAI Platform
                 </a>
@@ -237,15 +224,15 @@ export function ApiKeyManager({ onApiKeySet }: ApiKeyManagerProps) {
                     onChange={(e) => setApiKey(e.target.value)}
                     onKeyDown={handleKeyDown}
                     placeholder="sk-..."
-                    className="w-full px-4 py-3 pr-12 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+                    className="input-flat w-full px-4 py-3 pr-12 font-mono text-sm"
                   />
                   <button
                     type="button"
                     onClick={() => setShowKey(!showKey)}
                     aria-label={showKey ? 'Hide API key' : 'Show API key'}
-                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 font-mono text-xs text-ink-soft hover:text-ink transition-colors"
                   >
-                    {showKey ? <FiEyeOff /> : <FiEye />}
+                    {showKey ? 'hide' : 'show'}
                   </button>
                 </div>
 
@@ -255,9 +242,9 @@ export function ApiKeyManager({ onApiKeySet }: ApiKeyManagerProps) {
                     id="persistent"
                     checked={persistent}
                     onChange={(e) => setPersistent(e.target.checked)}
-                    className="mr-2 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                    className="mr-2 rounded-[2px] border-rule accent-pen"
                   />
-                  <label htmlFor="persistent" className="text-sm text-gray-600">
+                  <label htmlFor="persistent" className="text-sm text-ink-soft">
                     Remember key (stored locally)
                   </label>
                 </div>
@@ -265,14 +252,14 @@ export function ApiKeyManager({ onApiKeySet }: ApiKeyManagerProps) {
                 <div className="flex space-x-3">
                   <button
                     onClick={handleSaveKey}
-                    className="flex-1 bg-indigo-600 text-white py-2 px-4 rounded-lg hover:bg-indigo-700 transition-colors font-medium"
+                    className="btn-pen flex-1 py-2 px-4 text-sm"
                   >
-                    Save Key
+                    Save key
                   </button>
                   {!keyRequired && (
                     <button
                       onClick={() => setShowModal(false)}
-                      className="flex-1 bg-gray-300 text-gray-700 py-2 px-4 rounded-lg hover:bg-gray-400 transition-colors font-medium"
+                      className="btn-ghost flex-1 py-2 px-4 text-sm"
                     >
                       Cancel
                     </button>
@@ -280,9 +267,9 @@ export function ApiKeyManager({ onApiKeySet }: ApiKeyManagerProps) {
                 </div>
               </div>
 
-              <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                <p className="text-xs text-yellow-800">
-                  <strong>Privacy:</strong> Your API key is stored only in your browser and sent over HTTPS to our API solely to forward your requests to OpenAI. It is never stored on our servers.
+              <div className="mt-4 p-3 bg-bench border border-rule rounded-[3px]">
+                <p className="text-xs text-ink-soft leading-relaxed">
+                  <strong className="text-ink">Privacy:</strong> Your API key is stored only in your browser and sent over HTTPS to our API solely to forward your requests to OpenAI. It is never stored on our servers.
                 </p>
               </div>
             </motion.div>

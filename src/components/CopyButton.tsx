@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { FiCopy, FiCheck } from 'react-icons/fi';
 import toast from 'react-hot-toast';
 
 interface CopyButtonProps {
@@ -38,14 +37,14 @@ export function CopyButton({ text, label = 'text', className = '' }: CopyButtonP
     <button
       type="button"
       onClick={handleCopy}
-      className={`p-1 text-gray-400 hover:text-blue-600 transition-colors ${className}`}
+      className={`btn-ghost px-2.5 py-1.5 text-xs font-mono ${className}`}
       aria-label={`Copy ${label}`}
       title={`Copy ${label}`}
     >
       {copied ? (
-        <FiCheck className="w-4 h-4 text-green-600" aria-hidden="true" />
+        <span className="text-pass" aria-hidden="true">✓ copied</span>
       ) : (
-        <FiCopy className="w-4 h-4" aria-hidden="true" />
+        <span aria-hidden="true">copy</span>
       )}
     </button>
   );
