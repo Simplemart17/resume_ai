@@ -291,6 +291,12 @@ export function LandingPage() {
                 <Link href="/autofill" className="text-paper/60 hover:text-paper transition-colors">
                   Auto-Fill
                 </Link>
+                <Link href="/privacy" className="text-paper/60 hover:text-paper transition-colors">
+                  Privacy
+                </Link>
+                <Link href="/terms" className="text-paper/60 hover:text-paper transition-colors">
+                  Terms
+                </Link>
               </nav>
             </div>
 

@@ -9,6 +9,8 @@ const LINKS = [
   { href: '/optimize', label: 'AI Optimizer' },
   { href: '/autofill', label: 'Auto-Fill' },
   { href: '/#pricing', label: 'Pricing' },
+  { href: '/privacy', label: 'Privacy' },
+  { href: '/terms', label: 'Terms' },
 ];
 
 /**

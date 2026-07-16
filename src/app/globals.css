@@ -316,6 +316,40 @@ html {
     color: var(--color-pass);
     font-variant-numeric: tabular-nums;
   }
+
+  /* Long-form document body — a small local prose scope so the privacy and
+     terms pages read as typeset legal documents without a prose plugin. */
+  .legal-body {
+    color: var(--color-ink-soft);
+    font-size: 15px;
+    line-height: 1.7;
+  }
+  .legal-body > * + * {
+    margin-top: 0.75rem;
+  }
+  .legal-body strong {
+    color: var(--color-ink);
+    font-weight: 600;
+  }
+  .legal-body a {
+    color: var(--color-pen);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+  .legal-body a:hover {
+    color: var(--color-pen-deep);
+  }
+  .legal-body ul {
+    list-style: disc;
+    padding-left: 1.2rem;
+  }
+  .legal-body ul > li + li {
+    margin-top: 0.375rem;
+  }
+  .legal-body ul::marker,
+  .legal-body li::marker {
+    color: var(--color-rule);
+  }
 }
 
 /* ── Hero: the mini resume typesets itself while the machine reads it. ───── */
