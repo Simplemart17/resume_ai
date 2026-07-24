@@ -12,6 +12,7 @@
     "@clerk/nextjs": "^7.5.17",
     "@supabase/supabase-js": "^2.110.2",
     "axios": "^1.8.1",
+    "docx": "^9.7.1",
     "dompurify": "^3.3.1",
     "framer-motion": "^12.4.10",
     "jspdf": "^4.2.1",

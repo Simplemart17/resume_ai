@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
-import type { checkRateLimit } from '@/utils/rateLimit';
-import { isClerkConfigured, isClerkMisconfigured } from '@/lib/entitlements';
+import { checkRateLimit } from '@/utils/rateLimit';
+import { getEntitlement, isClerkConfigured, isClerkMisconfigured } from '@/lib/entitlements';
+import { DocumentsUnavailableError } from '@/lib/documents.server';
+import type { Tier } from '@/lib/tiers';
 
 // Shared scaffolding for the API routes. These blocks were previously
 // copy-pasted per route and had already diverged (proxy lacked the
@@ -98,6 +100,85 @@ export async function resolveOpenAIKey(request: NextRequest): Promise<ResolvedOp
       { status: 401 }
     ),
   };
+}
+
+export type RequireUserResult =
+  | { userId: string; tier: Tier; errorResponse?: never }
+  | { userId?: never; tier?: never; errorResponse: NextResponse };
+
+/**
+ * Shared preamble for authenticated, account-only API routes (the /documents
+ * family): rate limit → Clerk config gate → verified Clerk session → tier.
+ * Collapses the block otherwise copy-pasted across every handler.
+ *
+ * Returns the resolved `{ userId, tier }`, or a ready-made `errorResponse`:
+ * - 429 when rate limited
+ * - 503 when Clerk is misconfigured (exactly one key set) — fail loudly
+ * - 503 when accounts aren't configured at all (matches /api/me)
+ * - 401 when there is no signed-in user
+ * - 503 when the tier lookup is degraded (DB error) — never treat as free
+ */
+export async function requireUser(
+  request: NextRequest,
+  bucket: string,
+  rateLimitOpts?: { limit?: number; windowMs?: number }
+): Promise<RequireUserResult> {
+  const rateLimit = checkRateLimit(request, {
+    limit: rateLimitOpts?.limit ?? 30,
+    windowMs: rateLimitOpts?.windowMs ?? 60000,
+    bucket,
+  });
+  if (!rateLimit.allowed) {
+    return { errorResponse: rateLimitResponse(rateLimit) };
+  }
+
+  if (isClerkMisconfigured()) {
+    return {
+      errorResponse: NextResponse.json(
+        { error: 'Accounts are misconfigured on this server.' },
+        { status: 503 }
+      ),
+    };
+  }
+
+  if (!isClerkConfigured()) {
+    // No accounts mode: persistence is unavailable by design. Mirror /api/me's
+    // 503 for this state so the client sees one consistent "no accounts" signal.
+    return {
+      errorResponse: NextResponse.json(
+        { error: 'Accounts are not configured' },
+        { status: 503 }
+      ),
+    };
+  }
+
+  const { userId, tier, degraded } = await getEntitlement();
+  if (!userId) {
+    return { errorResponse: NextResponse.json({ error: 'Not signed in' }, { status: 401 }) };
+  }
+  if (degraded) {
+    return {
+      errorResponse: NextResponse.json(
+        { error: 'Account data is temporarily unavailable' },
+        { status: 503 }
+      ),
+    };
+  }
+
+  return { userId, tier };
+}
+
+/**
+ * Maps an error thrown by the documents data layer to a client response: 503
+ * when storage isn't configured, 500 otherwise (message logged, not leaked).
+ * Lives here with the other HTTP mappers so the data layer stays HTTP-free.
+ */
+export function documentsErrorResponse(error: unknown): NextResponse {
+  if (error instanceof DocumentsUnavailableError) {
+    return NextResponse.json({ error: 'Document storage is not configured' }, { status: 503 });
+  }
+  console.error('documents route error:', error);
+  return NextResponse.json({ error: 'Something went wrong' }, { status: 500 });
 }
 
 /**
