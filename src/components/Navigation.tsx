@@ -13,6 +13,11 @@ const APP_LINKS = [
   { href: '/autofill', label: 'Auto-Fill' },
 ];
 
+// Only meaningful for signed-in users — appended to APP_LINKS when accounts are
+// enabled and a session exists, so signed-out / no-accounts visitors never hit
+// a page that just tells them to sign in.
+const DOCUMENTS_LINK = { href: '/documents', label: 'Documents' };
+
 // Marketing links shown on the landing page (desktop and mobile menus).
 // The "Start a resume" CTA is rendered separately since it is styled differently.
 const MARKETING_LINKS = [
@@ -93,6 +98,8 @@ export function Navigation() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const auth = useUserTier();
+  const appLinks =
+    auth.accountsEnabled && auth.user ? [...APP_LINKS, DOCUMENTS_LINK] : APP_LINKS;
 
   // Close mobile menu whenever the route changes
   useEffect(() => {
@@ -152,7 +159,7 @@ export function Navigation() {
               </div>
             ) : (
               <div className="ml-10 flex items-center gap-1">
-                {APP_LINKS.map((link) => (
+                {appLinks.map((link) => (
                   <Link
                     key={link.href}
                     href={link.href}
@@ -220,7 +227,7 @@ export function Navigation() {
               </>
             ) : (
               <>
-                {APP_LINKS.map((link) => (
+                {appLinks.map((link) => (
                   <Link
                     key={link.href}
                     href={link.href}
