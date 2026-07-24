@@ -7,7 +7,7 @@ import { getStripe } from '@/lib/stripe';
 import { isPaidTier, isTier, TIERS } from '@/lib/tiers';
 
 /**
- * POST /api/stripe/checkout — body { tier: 'pro' | 'enterprise' }.
+ * POST /api/stripe/checkout — body { tier: 'starter' | 'pro' | 'enterprise' }.
  * Creates a one-time-payment Stripe Checkout Session for the signed-in user
  * and returns { url } to redirect them to. Fulfillment happens in the
  * webhook route, never here.
@@ -31,7 +31,7 @@ export async function POST(request: NextRequest) {
 
     if (!isTier(tier) || !isPaidTier(tier)) {
       return NextResponse.json(
-        { error: 'Invalid tier. Choose "pro" or "enterprise".' },
+        { error: 'Invalid tier. Choose a paid plan (Starter, Pro, or Enterprise).' },
         { status: 400 }
       );
     }
