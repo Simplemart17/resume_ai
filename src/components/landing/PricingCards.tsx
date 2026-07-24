@@ -7,9 +7,10 @@ import { useUserTier } from '@/lib/useUserTier';
 import { startCheckout } from '@/lib/checkout';
 
 /**
- * The three pricing cards, rendered entirely from the TIERS definition in
- * src/lib/tiers.ts — never hardcode prices or feature lists here. One-time
- * lifetime purchases: Free / Pro / Enterprise.
+ * The pricing cards, rendered entirely from the TIERS definition in
+ * src/lib/tiers.ts — never hardcode prices or feature lists here. Free is the
+ * $0 unpaid tier (build + download); the one-time lifetime purchases are
+ * Starter $1 / Pro $2 / Enterprise $5.
  */
 export function PricingCards() {
   const { tier: userTier, loading, accountsEnabled } = useUserTier();
@@ -41,10 +42,10 @@ export function PricingCards() {
 
   return (
     <div>
-      {/* A ruled ledger, not a fan of floating cards — the three tiers share
-          one sheet, hairline-separated, with Pro as the dark "lit" column. */}
-      <div className="paper overflow-hidden max-w-5xl mx-auto">
-        <div className="grid gap-px bg-rule md:grid-cols-3">
+      {/* A ruled ledger, not a fan of floating cards — the tiers share one
+          sheet, hairline-separated, with Pro as the dark "lit" column. */}
+      <div className="paper overflow-hidden max-w-6xl mx-auto">
+        <div className="grid gap-px bg-rule sm:grid-cols-2 lg:grid-cols-4">
           {TIER_ORDER.map((tierId) => {
             const tierDef = TIERS[tierId];
             const highlighted = tierId === 'pro';
@@ -154,7 +155,7 @@ export function PricingCards() {
       </div>
 
       <p className="font-mono text-xs text-ink-soft mt-6 max-w-3xl mx-auto text-center">
-        AI optimization and cover letters run on your own OpenAI key on every plan, unmetered by us. Paid plans unlock templates.
+        AI optimization and cover letters run on your own OpenAI key on every plan, unmetered by us. Paid plans unlock saving and more templates.
       </p>
     </div>
   );

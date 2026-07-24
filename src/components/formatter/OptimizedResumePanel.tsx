@@ -4,9 +4,13 @@ import { FormattedResult } from './types';
 import { highlightKeywords } from './highlightKeywords';
 import { ScoreVerdict } from './ScoreVerdict';
 import { CopyButton } from '../CopyButton';
+import { DownloadMenu } from '../DownloadMenu';
+import { downloadResumeText } from '@/utils/documentExport';
 
 interface OptimizedResumePanelProps {
   result: FormattedResult;
+  /** Base filename (no extension) for exports; defaults to "optimized-resume". */
+  fileBase?: string;
 }
 
 /** A line that reads like a résumé section heading (short, all-caps, or a
@@ -55,23 +59,13 @@ function TypesetResume({ text, keywords }: { text: string; keywords: string[] })
   );
 }
 
-function downloadResume(text: string) {
-  const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = 'optimized-resume.txt';
-  a.click();
-  URL.revokeObjectURL(url);
-}
-
 /**
  * The one canonical result: the score verdict leads, then the optimized résumé
  * typeset and marked up with the parser's findings, and a marginalia rail
  * (matched keywords, what's still missing, and the edit log) alongside it — the
  * way an editor returns a draft.
  */
-export function OptimizedResumePanel({ result }: OptimizedResumePanelProps) {
+export function OptimizedResumePanel({ result, fileBase = 'optimized-resume' }: OptimizedResumePanelProps) {
   return (
     <div className="space-y-8">
       <ScoreVerdict
@@ -87,13 +81,13 @@ export function OptimizedResumePanel({ result }: OptimizedResumePanelProps) {
             <p className="eyebrow">Optimized résumé</p>
             <div className="flex items-center gap-2">
               <CopyButton text={result.optimizedResume} label="résumé" />
-              <button
-                type="button"
-                onClick={() => downloadResume(result.optimizedResume)}
-                className="btn-ghost px-2.5 py-1.5 text-xs font-mono"
-              >
-                download
-              </button>
+              <DownloadMenu
+                options={[
+                  { format: 'pdf', onSelect: () => downloadResumeText(result.optimizedResume, fileBase, 'pdf') },
+                  { format: 'docx', onSelect: () => downloadResumeText(result.optimizedResume, fileBase, 'docx') },
+                  { format: 'txt', onSelect: () => downloadResumeText(result.optimizedResume, fileBase, 'txt') },
+                ]}
+              />
             </div>
           </div>
           <div className="px-8 py-10 sm:px-12">
